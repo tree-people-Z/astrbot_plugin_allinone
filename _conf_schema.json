@@ -1,0 +1,283 @@
+{
+  "timezone": {
+    "description": "时区偏移（小时）",
+    "type": "int",
+    "hint": "用于判定自然日与每日重置，默认 8 即 UTC+8。",
+    "default": 8
+  },
+  "request_timeout": {
+    "description": "网络请求超时（秒）",
+    "type": "int",
+    "default": 15
+  },
+  "http_proxy": {
+    "description": "网络代理地址",
+    "type": "string",
+    "hint": "如 http://127.0.0.1:7890，留空表示不使用代理。",
+    "default": ""
+  },
+  "llm_enable": {
+    "description": "启用 LLM 函数工具（自然语言驱动）",
+    "type": "bool",
+    "hint": "开启后可用自然语言（@机器人/唤醒前缀）触发签到、点歌、戳人、群管等能力。",
+    "default": true
+  },
+  "command_enable": {
+    "description": "启用传统指令",
+    "type": "bool",
+    "hint": "默认关闭，改为自然语言驱动；开启后保留 /签到 /点歌 等指令作为兜底。",
+    "default": false
+  },
+  "llm_capability_hint": {
+    "description": "向 LLM 注入本插件能力提示",
+    "type": "bool",
+    "hint": "开启后会在每轮对话注入一小段动态上下文，让模型明确可用能力。",
+    "default": true
+  },
+  "checkin_enable": {
+    "description": "启用签到模块",
+    "type": "bool",
+    "default": true
+  },
+  "fortune_tiers": {
+    "description": "签到吉凶运势等级（权重相对概率，积分区间）",
+    "type": "template_list",
+    "hint": "签到先抽等级，再在该等级积分区间内随机。留空则使用内置 9 级默认值。",
+    "default": [
+      {"__template_key": "tier", "name": "大凶", "weight": 3, "min_points": 1, "max_points": 5},
+      {"__template_key": "tier", "name": "凶", "weight": 7, "min_points": 6, "max_points": 15},
+      {"__template_key": "tier", "name": "小凶", "weight": 10, "min_points": 16, "max_points": 25},
+      {"__template_key": "tier", "name": "末吉", "weight": 15, "min_points": 26, "max_points": 40},
+      {"__template_key": "tier", "name": "小吉", "weight": 20, "min_points": 41, "max_points": 55},
+      {"__template_key": "tier", "name": "中吉", "weight": 20, "min_points": 56, "max_points": 70},
+      {"__template_key": "tier", "name": "吉", "weight": 15, "min_points": 71, "max_points": 85},
+      {"__template_key": "tier", "name": "大吉", "weight": 8, "min_points": 86, "max_points": 99},
+      {"__template_key": "tier", "name": "超大吉", "weight": 2, "min_points": 100, "max_points": 100}
+    ],
+    "templates": {
+      "tier": {
+        "name": "运势等级",
+        "display_item": "name",
+        "items": {
+          "name": {"description": "等级名称", "type": "string", "default": "小吉"},
+          "weight": {"description": "权重（相对概率）", "type": "int", "default": 10},
+          "min_points": {"description": "最低积分", "type": "int", "default": 1},
+          "max_points": {"description": "最高积分", "type": "int", "default": 10}
+        }
+      }
+    }
+  },
+  "streak_bonus_per_day": {
+    "description": "连续签到每日额外加成积分",
+    "type": "int",
+    "default": 5
+  },
+  "streak_bonus_cap": {
+    "description": "连续签到加成上限",
+    "type": "int",
+    "default": 50
+  },
+  "wife_enable": {
+    "description": "启用每日老婆模块",
+    "type": "bool",
+    "default": true
+  },
+  "waifu_source": {
+    "description": "每日老婆图源",
+    "type": "string",
+    "options": ["manshuo_trace", "manshuo", "anilist", "kitsu"],
+    "default": "manshuo_trace"
+  },
+  "manshuo_base_url": {
+    "description": "漫朔图库地址",
+    "type": "string",
+    "default": "https://web.manshuo.ink"
+  },
+  "manshuo_api_key": {
+    "description": "漫朔图库 API Key",
+    "type": "string",
+    "hint": "漫朔 X-API-Key，可留空。",
+    "default": "",
+    "secret": true
+  },
+  "trace_moe_base_url": {
+    "description": "trace.moe 反查地址",
+    "type": "string",
+    "default": "https://api.trace.moe/search"
+  },
+  "change_wife_cost": {
+    "description": "换老婆消耗积分",
+    "type": "int",
+    "default": 30
+  },
+  "change_wife_limit": {
+    "description": "每日换老婆次数上限（0 不限）",
+    "type": "int",
+    "default": 2
+  },
+  "leaderboard_scope": {
+    "description": "排行榜统计范围",
+    "type": "string",
+    "options": ["global", "group"],
+    "default": "global"
+  },
+  "music_enable": {
+    "description": "启用点歌模块",
+    "type": "bool",
+    "default": true
+  },
+  "music_default_platform": {
+    "description": "点歌音源",
+    "type": "string",
+    "options": ["qq"],
+    "default": "qq"
+  },
+  "music_agg_base_url": {
+    "description": "多音源聚合接口地址",
+    "type": "string",
+    "default": "https://music.txqq.pro/"
+  },
+  "music_song_limit": {
+    "description": "搜索结果数量",
+    "type": "int",
+    "default": 5
+  },
+  "music_select_mode": {
+    "description": "选歌展示方式",
+    "type": "string",
+    "options": ["text", "image", "single"],
+    "default": "text"
+  },
+  "music_record_link": {
+    "description": "附带语音链接发送",
+    "type": "bool",
+    "hint": "开启后尝试以语音形式发送歌曲，失败时仍会发送文本链接。",
+    "default": false
+  },
+  "music_enable_comments": {
+    "description": "发送后附加热评",
+    "type": "bool",
+    "default": false
+  },
+  "music_enable_lyrics": {
+    "description": "启用歌词",
+    "type": "bool",
+    "default": true
+  },
+  "music_nodejs_base_url": {
+    "description": "网易云 NodeJS 接口地址（可选）",
+    "type": "string",
+    "default": ""
+  },
+  "music_card_api_key": {
+    "description": "签名卡片 API Key（可选）",
+    "type": "string",
+    "default": "",
+    "secret": true
+  },
+  "poke_enable": {
+    "description": "启用戳一戳模块（仅 QQ）",
+    "type": "bool",
+    "default": true
+  },
+  "poke_on": {
+    "description": "被戳时是否响应",
+    "type": "bool",
+    "default": true
+  },
+  "poke_cd": {
+    "description": "用户戳 Bot 冷却（秒）",
+    "type": "int",
+    "default": 10
+  },
+  "poke_group_cd": {
+    "description": "群级被戳冷却（秒，0 关闭）",
+    "type": "int",
+    "default": 0
+  },
+  "poke_follow_prob": {
+    "description": "跟戳概率",
+    "type": "float",
+    "default": 0.1
+  },
+  "poke_max_times": {
+    "description": "主动戳次数上限（管理员不受限）",
+    "type": "int",
+    "default": 5
+  },
+  "poke_interval": {
+    "description": "发戳间隔（秒）",
+    "type": "float",
+    "default": 0.5
+  },
+  "poke_keywords": {
+    "description": "命中关键词自动回戳",
+    "type": "list",
+    "default": ["笨蛋", "人机", "机器人", "bot"]
+  },
+  "poke_weight_antipoke": {"description": "被戳动作-反戳权重", "type": "int", "default": 10},
+  "poke_weight_llm": {"description": "被戳动作-LLM回复权重", "type": "int", "default": 10},
+  "poke_weight_face": {"description": "被戳动作-QQ表情权重", "type": "int", "default": 10},
+  "poke_weight_meme": {"description": "被戳动作-表情包权重", "type": "int", "default": 10},
+  "poke_weight_record": {"description": "被戳动作-语音权重", "type": "int", "default": 0},
+  "poke_weight_ban": {"description": "被戳动作-禁言权重", "type": "int", "default": 0},
+  "poke_weight_command": {"description": "被戳动作-触发命令权重", "type": "int", "default": 0},
+  "poke_face_pool": {
+    "description": "QQ 表情 ID 池",
+    "type": "list",
+    "default": [1, 11, 14, 21, 23, 25, 111]
+  },
+  "poke_meme_pool": {
+    "description": "表情包图片路径池",
+    "type": "list",
+    "default": []
+  },
+  "poke_record_pool": {
+    "description": "语音文件路径池",
+    "type": "list",
+    "default": []
+  },
+  "poke_antipoke_max": {"description": "反戳最大次数", "type": "int", "default": 5},
+  "poke_ban_duration": {"description": "被戳触发禁言时长（秒）", "type": "int", "default": 60},
+  "poke_ban_delta": {"description": "禁言时长波动（±秒）", "type": "int", "default": 30},
+  "admin_enable": {
+    "description": "启用群管模块（仅 QQ）",
+    "type": "bool",
+    "default": true
+  },
+  "admin_superusers": {
+    "description": "群管超级管理员（QQ号列表）",
+    "type": "list",
+    "default": []
+  },
+  "admin_ban_default": {
+    "description": "默认禁言时长（秒）",
+    "type": "int",
+    "default": 300
+  },
+  "admin_recall_default": {
+    "description": "默认撤回条数",
+    "type": "int",
+    "default": 10
+  },
+  "admin_builtin_badwords": {
+    "description": "启用内置违禁词检测",
+    "type": "bool",
+    "default": true
+  },
+  "admin_spam_enable": {
+    "description": "启用刷屏检测",
+    "type": "bool",
+    "default": true
+  },
+  "admin_spam_duration": {
+    "description": "刷屏禁言时长（秒，0 关闭）",
+    "type": "int",
+    "default": 0
+  },
+  "admin_advanced_enable": {
+    "description": "启用群管进阶功能（头衔/上管/群名/群头像/精华）",
+    "type": "bool",
+    "default": false
+  }
+}
