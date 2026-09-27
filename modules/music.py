@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import astrbot.api.message_components as Comp
-from astrbot.api import AstrMessageEvent, logger
+from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent
 
 from ..core.core import Core
 from ..core.utils import sender_id_of, truncate

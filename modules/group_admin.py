@@ -7,7 +7,8 @@ import re
 import time
 from datetime import datetime
 
-from astrbot.api import AstrMessageEvent, logger
+from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent
 
 from ..core.core import Core
 from ..core.utils import (

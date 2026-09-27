@@ -6,7 +6,8 @@ import asyncio
 import random
 import time
 
-from astrbot.api import AstrMessageEvent, logger
+from astrbot.api import logger
+from astrbot.api.event import AstrMessageEvent
 from astrbot.api.message_components import At, Face
 
 from ..core.core import Core
