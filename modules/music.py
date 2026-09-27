@@ -168,12 +168,11 @@ class MusicModule:
             "type": "music",
             "data": {
                 "type": "custom",
-                "url": song.audio_url,
+                "url": song.link or song.audio_url,
                 "audio": song.audio_url,
                 "title": song.name,
                 "content": song.artists,
                 "image": song.cover_url,
-                "singer": song.artists,
             },
         }
         if await self._send_onebot(event, segment):
@@ -184,8 +183,8 @@ class MusicModule:
                 event.chain_result(
                     [
                         Comp.Music(
-                            type="custom",
-                            url=song.audio_url,
+                            _type="custom",
+                            url=song.link or song.audio_url,
                             audio=song.audio_url,
                             title=song.name,
                             content=song.artists,
