@@ -146,7 +146,7 @@
   "music_send_card": {
     "description": "发送 QQ 音乐卡片",
     "type": "bool",
-    "hint": "仅 QQ OneBot：先发送普通音乐卡片；失败且已配置 API Key 时尝试签名卡片，最后回退语音或文本。",
+    "hint": "仅 QQ OneBot：配置 API Key 时优先发送签名卡片，避免部分 QQ 客户端显示“发送者版本过低”；否则尝试普通卡片，最后回退语音或文本。",
     "default": true
   },
   "music_enable_comments": {

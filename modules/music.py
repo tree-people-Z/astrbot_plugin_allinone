@@ -239,10 +239,13 @@ class MusicModule:
     async def send_song(self, event: AstrMessageEvent, song: Song) -> str:
         sent = False
         if event.get_platform_name() == "aiocqhttp" and self.core.cfg.bool("music_send_card", True):
-            sent = await self._send_card(event, song)
             key = self.core.cfg.str("music_card_api_key").strip()
-            if not sent and key:
+            # A signed Ark card avoids the "sender version too low" placeholder
+            # shown by some QQ/NapCat clients for ordinary custom music cards.
+            if key:
                 sent = await self._send_ark_card(event, song, key)
+            if not sent:
+                sent = await self._send_card(event, song)
         if not sent and song.audio_url and self.core.cfg.bool("music_record_link", False):
             try:
                 await event.send(event.chain_result([Comp.Record.fromURL(song.audio_url)]))
