@@ -85,8 +85,8 @@
   "waifu_source": {
     "description": "每日老婆图源",
     "type": "string",
-    "options": ["manshuo_trace", "manshuo", "anilist", "kitsu"],
-    "default": "manshuo_trace"
+    "options": ["manshuo", "manshuo_trace", "anilist", "kitsu"],
+    "default": "manshuo"
   },
   "manshuo_base_url": {
     "description": "漫朔图库地址",
@@ -279,5 +279,39 @@
     "description": "启用群管进阶功能（头衔/上管/群名/群头像/精华）",
     "type": "bool",
     "default": false
+  },
+  "chatter_enable": {
+    "description": "启用上下文主动感知插话",
+    "type": "bool",
+    "hint": "不@也能触发：监听全群消息，在合适语境下主动接话或调度功能。AstrBot 自身主动回复关闭后依然有效。",
+    "default": true
+  },
+  "chatter_mode": {
+    "description": "插话决策模式",
+    "type": "string",
+    "options": ["keyword", "llm"],
+    "hint": "keyword：命中关键词才决策（低频省钱）；llm：每条消息都参与决策（受冷却与概率约束）。",
+    "default": "keyword"
+  },
+  "chatter_keywords": {
+    "description": "插话触发关键词",
+    "type": "list",
+    "default": ["签到", "排行", "积分", "老婆", "点歌", "听歌", "唱歌", "戳", "禁言", "踢", "公告", "宵禁"]
+  },
+  "chatter_cooldown": {
+    "description": "同群插话冷却（秒）",
+    "type": "int",
+    "default": 60
+  },
+  "chatter_prob": {
+    "description": "关键词命中后插话概率",
+    "type": "float",
+    "hint": "0-1，避免频繁打扰；点名/被@的语态不受此概率约束。",
+    "default": 0.7
+  },
+  "chatter_history": {
+    "description": "决策参考的最近对话条数",
+    "type": "int",
+    "default": 8
   }
 }

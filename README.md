@@ -17,7 +17,37 @@
 | `/老婆`（今日老婆/每日老婆） | 每日一次，图 + 角色名/标签 |
 | `/换老婆` | 重抽，消耗积分，每日限次 |
 
-老婆图源 `waifu_source`：`manshuo_trace`（默认，高清） / `manshuo` / `anilist` / `kitsu`。
+老婆图源 `waifu_source`：`manshuo`（默认，漫朔图库高清图 + AI 标签）/ `manshuo_trace`（漫朔图 + trace.moe 反查出处）/ `anilist` / `kitsu`。
+
+## 🗣️ 自然语言驱动（不@ 也能触发）
+
+本插件**以自然语言为主、指令为兜底**（指令默认关闭）：
+
+- **LLM 函数工具**：注册 20+ 函数工具，正常 @机器人 对话时，模型可自主调度签到、点歌、戳人、群管等能力。
+- **上下文主动感知插话**（`chatter`）：即使 AstrBot 的主动回复/唤醒关闭，插件也会监听全群消息——
+
+  1. 记住每群最近 14 条对话；
+  2. 按模式与冷却/概率决定是否决策（`keyword` 模式命中「签到/老婆/点歌…」才决策，`llm` 模式每条都决策）；
+  3. LLM 返回 `{reply, intent, args}` JSON 决策，**调度器（dispatcher）按意图路由到 modules 层**，把结果发回群里；
+  4. 群级冷却默认 60 秒、插话概率 0.7，避免刷屏；LLM 不可用时自动退回本地正则规则。
+
+  > 不 @ 也能触发的原理：只要插件注册了消息监听器，AstrBot 会把每条群消息激活给它；@ 只约束 AstrBot 内置 LLM 管线，不影响插件自主感知与调度。
+
+## 🧩 调度器架构（方便加功能）
+
+```
+消息 ──→ on_qq_event / on_any_event（监听）
+          ├─ poke 事件 → poke 模块
+          ├─ 违禁词/刷屏/宵禁 → admin 模块
+          └─ chatter 上下文感知 ──→ LLM 决策 JSON ──→ dispatcher.dispatch(intent, args)
+                                                        │
+                                                        ├→ checkin_wife 模块（签到/老婆/积分）
+                                                        ├→ music 模块（点歌/歌词/歌单）
+                                                        ├→ poke 模块（戳人）
+                                                        └→ admin 模块（群管）
+```
+
+**加新功能三步**：modules/ 写方法（返回 str 或消息链）→ `core/dispatcher.py` 的 `INTENT`（`do_xxx` 方法）加映射 → 在 `PROMPT_INTENTS`/`PATTERN_INTENTS` 补意图说明。
 
 ### QQ点歌
 | 指令 | 说明 |
