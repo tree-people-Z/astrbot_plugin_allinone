@@ -17,7 +17,7 @@
 | `/老婆`（今日老婆/每日老婆） | 每日一次，图 + 角色名/标签 |
 | `/换老婆` | 重抽，消耗积分，每日限次 |
 
-老婆图源 `waifu_source`：`manshuo`（默认，漫朔图库高清图 + AI 标签）/ `manshuo_trace`（漫朔图 + trace.moe 反查出处）/ `anilist` / `kitsu`。
+老婆图源 `waifu_source`：`manshuo`（默认，漫朔图库高清图 + AI 标签）/ `manshuo_trace`（漫朔图 + trace.moe 反查出处）/ `anilist` / `kitsu` / `local`（本地图片库）。
 
 ## 🗣️ 自然语言驱动
 
@@ -80,6 +80,8 @@ WebUI 插件配置页可修改；关键项：
 | `fortune_tiers` | 内置 9 级 | 运势等级/权重/积分区间 |
 | `streak_bonus_per_day` / `streak_bonus_cap` | `5` / `50` | 连签加成 |
 | `waifu_source` | `manshuo_trace` | 老婆图源 |
+| `local_wife_paths` | `[]` | 本地老婆图片文件或目录路径列表，`waifu_source=local` 时使用 |
+| `local_wife_name_from_filename` | `true` | 是否使用本地图片文件名（不含扩展名）作为人物名称 |
 | `manshuo_api_key` | 空 | 漫朔 API Key（密文） |
 | `change_wife_cost` / `change_wife_limit` | `30` / `2` | 换老婆 |
 | `leaderboard_scope` | `global` | 榜单范围 |

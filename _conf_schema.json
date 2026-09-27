@@ -79,8 +79,20 @@
   "waifu_source": {
     "description": "每日老婆图源",
     "type": "string",
-    "options": ["manshuo", "manshuo_trace", "anilist", "kitsu"],
+    "options": ["manshuo", "manshuo_trace", "anilist", "kitsu", "local"],
     "default": "manshuo"
+  },
+  "local_wife_paths": {
+    "description": "本地老婆图片路径",
+    "type": "list",
+    "hint": "可填写图片文件或目录路径；目录会递归扫描 jpg/jpeg/png/gif/webp/bmp 文件。waifu_source=local 时使用。",
+    "default": []
+  },
+  "local_wife_name_from_filename": {
+    "description": "使用图片文件名作为人物名称",
+    "type": "bool",
+    "hint": "开启后使用图片文件名（不含扩展名）显示人物名称；关闭后显示为神秘老婆。",
+    "default": true
   },
   "manshuo_base_url": {
     "description": "漫朔图库地址",

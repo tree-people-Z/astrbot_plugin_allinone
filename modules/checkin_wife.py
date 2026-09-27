@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import random
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import quote
 
 import astrbot.api.message_components as Comp
@@ -175,7 +176,7 @@ class CheckinWifeModule:
             if not image:
                 continue
             names = attrs.get("names") or {}
-            name = attrs.get("canonicalName") or names.get("en") or "未知角色"
+            name = str(attrs.get("canonicalName") or names.get("en") or "")
             return {"name": name, "label": "角色", "image": image, "desc": "", "source": "Kitsu"}
         return None
 
@@ -198,7 +199,7 @@ class CheckinWifeModule:
         if names.get("native") and names.get("full"):
             name = f"{names['full']}（{names['native']}）"
         else:
-            name = names.get("full") or names.get("native") or "未知角色"
+            name = str(names.get("full") or names.get("native") or "")
         desc = char.get("description") or ""
         for token in (
             "<br>",
@@ -241,7 +242,7 @@ class CheckinWifeModule:
             if not image:
                 continue
             tags = [str(t) for t in (item.get("tags") or []) if t]
-            name = "、".join(tags[:5]) if tags else (item.get("display_name") or "神秘老婆")
+            name = "、".join(tags[:5]) if tags else str(item.get("display_name") or "")
             return {
                 "name": name,
                 "label": "标签",
@@ -278,6 +279,38 @@ class CheckinWifeModule:
                 result["source"] = "漫朔 + trace.moe"
         return result
 
+    def _local_wife_files(self) -> list[Path]:
+        """Expand configured local files/directories into supported image files."""
+        extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+        files: list[Path] = []
+        for raw in self.core.cfg.list("local_wife_paths", []):
+            path = Path(str(raw)).expanduser()
+            if path.is_file() and path.suffix.lower() in extensions:
+                files.append(path)
+            elif path.is_dir():
+                files.extend(
+                    item
+                    for item in path.rglob("*")
+                    if item.is_file() and item.suffix.lower() in extensions
+                )
+        return files
+
+    async def _draw_local(self) -> dict | None:
+        files = self._local_wife_files()
+        if not files:
+            logger.warning(f"{SIGN} 本地图源没有找到可用图片")
+            return None
+        image = random.choice(files)
+        use_filename = self.core.cfg.bool("local_wife_name_from_filename", True)
+        return {
+            "name": image.stem if use_filename else "",
+            "label": "角色",
+            "image": str(image.resolve()),
+            "desc": "来自本地图片库",
+            "source": "本地图库",
+            "local": True,
+        }
+
     async def draw_wife(self) -> dict | None:
         source = self.core.cfg.str("waifu_source", "kitsu").lower()
         try:
@@ -287,6 +320,8 @@ class CheckinWifeModule:
                 return await self._draw_manshuo()
             if source == "manshuo_trace":
                 return await self._draw_manshuo_trace()
+            if source == "local":
+                return await self._draw_local()
             return await self._draw_kitsu()
         except Exception as exc:
             logger.warning(f"{SIGN} 抽取老婆失败: {exc}")
@@ -301,10 +336,13 @@ class CheckinWifeModule:
     ) -> list:
         cost = self.core.cfg.int("change_wife_cost", 30)
         limit = self.core.cfg.int("change_wife_limit", 2)
-        lines = [prefix]
+        name = str(result.get("name") or "").strip()
         if sender_name and change_count == 0:
-            lines = [f"🎴 {sender_name} 今日的老婆来啦"]
-        lines.append(f"{result.get('label', '角色')}：{result.get('name') or '神秘老婆'}")
+            lines = [f"🎴 今天，你的老婆是{name}".rstrip()]
+        elif prefix.startswith("🔄"):
+            lines = [f"{prefix}：今天，你的老婆是{name}".rstrip()]
+        else:
+            lines = [f"今天，你的老婆是{name}".rstrip()]
         if result.get("desc"):
             lines.append(f"介绍：{result['desc']}")
         lines.append(f"来源：{result.get('source') or '未知'}")
@@ -318,7 +356,11 @@ class CheckinWifeModule:
             )
         chain = []
         if result.get("image"):
-            chain.append(Comp.Image.fromURL(result["image"]))
+            image = str(result["image"])
+            if result.get("local") or Path(image).is_file():
+                chain.append(Comp.Image.fromFileSystem(image))
+            else:
+                chain.append(Comp.Image.fromURL(image))
         chain.append(Comp.Plain("\n".join(lines)))
         return chain
 
@@ -330,10 +372,15 @@ class CheckinWifeModule:
         if existing:
             chain = []
             if existing[1]:
-                chain.append(Comp.Image.fromURL(existing[1]))
+                image = str(existing[1])
+                if Path(image).is_file():
+                    chain.append(Comp.Image.fromFileSystem(image))
+                else:
+                    chain.append(Comp.Image.fromURL(image))
             chain.append(
                 Comp.Plain(
-                    f"💞 {sender_name_of(event)} 你今天的老婆已经抽过啦~\n老婆：{existing[0]}\n"
+                    f"💞 {sender_name_of(event)} 你今天的老婆已经抽过啦~\n"
+                    f"今天，你的老婆是{existing[0] or ''}\n"
                     "发送 /换老婆 可以重抽"
                 )
             )
