@@ -313,7 +313,7 @@ class CheckinWifeModule:
         }
 
     async def draw_wife(self) -> dict | None:
-        source = self.core.cfg.str("waifu_source", "kitsu").lower()
+        source = self.core.cfg.str("waifu_source", "manshuo").lower()
         try:
             if source == "anilist":
                 return await self._draw_anilist()
@@ -323,7 +323,7 @@ class CheckinWifeModule:
                 return await self._draw_manshuo_trace()
             if source == "local":
                 return await self._draw_local()
-            return await self._draw_kitsu()
+            return await self._draw_manshuo()
         except Exception as exc:
             logger.warning(f"{SIGN} 抽取老婆失败: {exc}")
             return None
@@ -344,9 +344,6 @@ class CheckinWifeModule:
             lines = [f"{prefix}：今天，你的老婆是{name}".rstrip()]
         else:
             lines = [f"今天，你的老婆是{name}".rstrip()]
-        if result.get("desc"):
-            lines.append(f"介绍：{result['desc']}")
-        lines.append(f"来源：{result.get('source') or '未知'}")
         if change_count is not None:
             if limit > 0:
                 lines.append(f"今日已换 {change_count}/{limit} 次")
@@ -383,7 +380,7 @@ class CheckinWifeModule:
                     f"💞 {sender_name_of(event)} 你今天的老婆已经抽过啦~\n"
                     f"今天，你的老婆是{existing[0] or ''}\n"
                     "发送 /换老婆 可以重抽"
-                )
+                ),
             )
             return chain
         result = await self.draw_wife()

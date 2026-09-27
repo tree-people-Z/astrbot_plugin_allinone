@@ -91,7 +91,7 @@
   "local_wife_name_from_filename": {
     "description": "使用图片文件名作为人物名称",
     "type": "bool",
-    "hint": "开启后使用图片文件名（不含扩展名）显示人物名称；关闭后显示为神秘老婆。",
+    "hint": "开启后使用图片文件名（不含扩展名）显示人物名称；关闭后不显示人物名称。",
     "default": true
   },
   "manshuo_base_url": {
@@ -159,6 +159,12 @@
     "type": "bool",
     "hint": "开启后尝试以语音形式发送歌曲，失败时仍会发送文本链接。",
     "default": false
+  },
+  "music_send_card": {
+    "description": "发送 QQ 音乐卡片",
+    "type": "bool",
+    "hint": "开启后点歌时优先发送 QQ 音乐卡片，同时保留普通图片、语音和链接作为兼容内容。",
+    "default": true
   },
   "music_enable_comments": {
     "description": "发送后附加热评",

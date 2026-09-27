@@ -86,6 +86,7 @@ WebUI 插件配置页可修改；关键项：
 | `change_wife_cost` / `change_wife_limit` | `30` / `2` | 换老婆 |
 | `leaderboard_scope` | `global` | 榜单范围 |
 | `music_agg_base_url` | `https://music.txqq.pro/` | 点歌聚合接口 |
+| `music_send_card` | `true` | 点歌时发送 QQ 音乐卡片 |
 | `music_record_link` | `false` | 附带语音发送 |
 | `poke_*` | 见配置 | 戳一戳权重/冷却/池 |
 | `admin_*` | 见配置 | 群管默认值/违禁词/刷屏/宵禁/进阶 |

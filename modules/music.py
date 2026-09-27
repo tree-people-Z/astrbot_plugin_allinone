@@ -140,6 +140,23 @@ class MusicModule:
     def build_chain(self, song: Song) -> list:
         chain: list = []
         info = f"🎵 {song.name} - {song.artists}\n🔗 {song.link or song.audio_url}"
+        if song.song_id and self.core.cfg.bool("music_send_card", True):
+            try:
+                if song.song_id.isdigit():
+                    chain.append(Comp.Music(type="qq", id=int(song.song_id)))
+                elif song.link and song.audio_url:
+                    chain.append(
+                        Comp.Music(
+                            type="custom",
+                            url=song.link,
+                            audio=song.audio_url,
+                            title=song.name,
+                            content=song.artists,
+                            image=song.cover_url,
+                        )
+                    )
+            except Exception as exc:
+                logger.warning(f"{SIGN} 构造音乐卡片失败，将发送普通消息: {exc}")
         if song.cover_url:
             chain.append(Comp.Image.fromURL(song.cover_url))
         if song.audio_url and self.core.cfg.bool("music_record_link", False):
