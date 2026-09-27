@@ -236,12 +236,7 @@ class MusicModule:
             event, {"type": "json", "data": {"data": json.dumps(data, ensure_ascii=False)}}
         )
 
-    async def send_song(
-        self,
-        event: AstrMessageEvent,
-        song: Song,
-        direct_tool: bool = False,
-    ) -> str | None:
+    async def send_song(self, event: AstrMessageEvent, song: Song) -> str:
         sent = False
         if event.get_platform_name() == "aiocqhttp" and self.core.cfg.bool("music_send_card", True):
             key = self.core.cfg.str("music_card_api_key").strip()
@@ -273,8 +268,6 @@ class MusicModule:
                     await event.send(event.plain_result(f"📃 歌词预览：\n{truncate(lyric, 600)}"))
                 except Exception as exc:
                     logger.warning(f"{SIGN} 歌词发送失败: {exc}")
-        if direct_tool:
-            return None
         return f"已发送歌曲《{song.name}》- {song.artists}"
 
     def format_songs(self, songs: list[Song]) -> str:

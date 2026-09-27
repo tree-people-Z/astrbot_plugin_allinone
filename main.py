@@ -62,9 +62,9 @@ class AllInOnePlugin(Star):
     async def _targets(self, event: AstrMessageEvent, target: str = "") -> list[str]:
         return await resolve_targets(event, target)
 
-    async def _send_tool_text(self, event: AstrMessageEvent, text: str) -> None:
-        """直接发送工具结果，避免 Agent 再生成一条重复的总结消息。"""
+    async def _send_tool_text(self, event: AstrMessageEvent, text: str) -> str:
         await event.send(event.plain_result(text))
+        return "结果已直接发送给用户，无需复述。"
 
     # ============================================================
     #  LLM 工具（主入口）
@@ -100,7 +100,7 @@ class AllInOnePlugin(Star):
         if not chain:
             return "老婆召唤失败，请稍后再试。"
         await event.send(event.chain_result(chain))
-        return None
+        return "已为用户抽取并发送今日老婆。"
 
     @filter.llm_tool(name="change_daily_wife")
     async def tool_change_wife(self, event: AstrMessageEvent):
@@ -110,7 +110,7 @@ class AllInOnePlugin(Star):
         result = await self.checkin_wife.change_wife(event)
         if isinstance(result, list):
             await event.send(event.chain_result(result))
-            return None
+            return "已为用户换到新的老婆。"
         return await self._send_tool_text(event, str(result))
 
     # ----- 点歌（QQ音乐） -----
@@ -139,7 +139,7 @@ class AllInOnePlugin(Star):
         if not songs:
             return f"没有找到《{keyword}》相关歌曲。"
         chosen = songs[(max(1, int(index)) - 1) % len(songs)]
-        return await self.music.send_song(event, chosen, direct_tool=True)
+        return await self.music.send_song(event, chosen)
 
     @filter.llm_tool(name="query_lyrics")
     async def tool_query_lyrics(self, event: AstrMessageEvent, keyword: str):
