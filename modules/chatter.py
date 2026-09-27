@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import random
 import re
 import time
@@ -125,6 +126,30 @@ class ChatterModule:
 
     # ---------- LLM 决策 ----------
 
+    async def persona_prompt(self, event: AstrMessageEvent) -> str:
+        """读取当前会话的 AstrBot 人设（persona），供插话口吻对齐。"""
+        if not self.core.cfg.bool("chatter_use_persona", True):
+            return ""
+        manager = getattr(self.core.context, "persona_manager", None)
+        get_default = getattr(manager, "get_default_persona_v3", None)
+        if get_default is None:
+            return ""
+        try:
+            umo = getattr(event, "unified_msg_origin", None)
+            try:
+                persona = await get_default(umo=umo)
+            except TypeError:
+                persona = get_default()
+            if inspect.isawaitable(persona):
+                persona = await persona
+        except Exception as exc:
+            logger.debug(f"{SIGN} 读取人设失败（忽略）: {exc}")
+            return ""
+        if isinstance(persona, dict):
+            return str(persona.get("prompt") or "").strip()
+        prompt = getattr(persona, "prompt", None) or getattr(persona, "system_prompt", None)
+        return str(prompt or "").strip()
+
     async def ask_llm(self, event: AstrMessageEvent, text: str) -> dict:
         context = self.core.context
         get_provider = getattr(context, "get_current_chat_provider_id", None)
@@ -143,6 +168,7 @@ class ChatterModule:
                     history=self.history_text(group_id_of(event) or "private"),
                     name=sender_name_of(event),
                     message=truncate(text, 120),
+                    persona_prompt=await self.persona_prompt(event),
                 )
                 resp = await llm_generate(chat_provider_id=provider_id, prompt=prompt)
                 raw = getattr(resp, "completion_text", "") or ""

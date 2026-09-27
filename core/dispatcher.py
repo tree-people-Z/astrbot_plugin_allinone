@@ -42,13 +42,13 @@ ARG_KEYS = (
     "text",
 )
 
-DECISION_PROMPT = """你是群聊里的助手调度器。下面是本群最近的对话：
+DECISION_PROMPT = """{persona}你是群聊里的助手调度器。下面是本群最近的对话：
 
 {history}
 
 最新一条（来自 {name}）：{message}
 
-判断这条消息是否需要你接手。若需要，从中选出意图并提取参数；若只是普通闲聊但值得搭话，选择 chat 并给出不超过25字的俏皮回复；觉得没必要回应则选 none。
+判断这条消息是否需要你接手。若需要，从中选出意图并提取参数；若只是普通闲聊但值得搭话，选择 chat 并按人设语气给出不超过25字的回复；觉得没必要回应则选 none。
 
 可选意图：{intents}
 
@@ -66,9 +66,18 @@ class Dispatcher:
         self.admin = modules["admin"]
 
     @staticmethod
-    def decision_prompt(history: str, name: str, message: str) -> str:
+    def decision_prompt(history: str, name: str, message: str, persona_prompt: str = "") -> str:
+        persona_section = ""
+        if persona_prompt:
+            persona_section = (
+                f"说话请遵守以下人设（语气、称呼、口头禅都要贴合）：\n{persona_prompt}\n\n"
+            )
         return DECISION_PROMPT.format(
-            history=history, name=name, message=message, intents=PROMPT_INTENTS
+            history=history,
+            name=name,
+            message=message,
+            intents=PROMPT_INTENTS,
+            persona=persona_section,
         )
 
     def parse_decision(self, raw: str) -> dict:

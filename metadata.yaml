@@ -6,7 +6,7 @@ desc: >-
   QQ点歌、戳一戳、QQ 群管。以自然语言为主驱动：20+ LLM 函数工具 +
   上下文主动感知插话（不@也能触发，keyword/llm 双模式），意图经 dispatcher 路由到
   modules 层。QQ 专属功能自动降级，其他插件能力保持全平台可用。
-version: v1.1.0
+version: v1.1.1
 author: tree-people-Z
 repo: https://github.com/tree-people-Z/astrbot_plugin_allinone
 astrbot_version: ">=4.16"

@@ -313,5 +313,11 @@
     "description": "决策参考的最近对话条数",
     "type": "int",
     "default": 8
+  },
+  "chatter_use_persona": {
+    "description": "插话遵循 AstrBot 人设",
+    "type": "bool",
+    "hint": "开启后，不@的插话与闲聊会按当前会话的人设（persona）语气说话；未配置人设时为通用语气。",
+    "default": true
   }
 }
