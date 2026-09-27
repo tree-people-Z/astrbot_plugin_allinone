@@ -146,8 +146,17 @@ class MusicModule:
                 else {"group_id": event.get_group_id()}
             )
             action = "send_private_msg" if event.is_private_chat() else "send_group_msg"
-            result = await event.bot.api.call_action(action, message=[segment], **target)
-            return isinstance(result, dict) and result.get("message_id") is not None
+            call_action = getattr(event.bot, "call_action", None)
+            if call_action is None:
+                call_action = event.bot.api.call_action
+            result = await call_action(action, message=[segment], **target)
+            if not isinstance(result, dict):
+                return True
+            # AstrBot/OneBot adapters may return either the flattened data
+            # object or a standard {status, retcode, data} response.
+            if result.get("status") == "failed" or result.get("retcode", 0) not in (0, None):
+                return False
+            return True
         except Exception as exc:
             logger.warning(f"{SIGN} OneBot 音乐卡片发送失败: {exc}")
             return False
@@ -155,20 +164,40 @@ class MusicModule:
     async def _send_card(self, event: AstrMessageEvent, song: Song) -> bool:
         if not song.audio_url:
             return False
-        return await self._send_onebot(
-            event,
-            {
-                "type": "music",
-                "data": {
-                    "type": "custom",
-                    "url": song.audio_url,
-                    "audio": song.audio_url,
-                    "title": song.name,
-                    "image": song.cover_url,
-                    "singer": song.artists,
-                },
+        segment = {
+            "type": "music",
+            "data": {
+                "type": "custom",
+                "url": song.audio_url,
+                "audio": song.audio_url,
+                "title": song.name,
+                "content": song.artists,
+                "image": song.cover_url,
+                "singer": song.artists,
             },
-        )
+        }
+        if await self._send_onebot(event, segment):
+            return True
+        # Some AstrBot adapters expose message components but not call_action.
+        try:
+            await event.send(
+                event.chain_result(
+                    [
+                        Comp.Music(
+                            type="custom",
+                            url=song.audio_url,
+                            audio=song.audio_url,
+                            title=song.name,
+                            content=song.artists,
+                            image=song.cover_url,
+                        )
+                    ]
+                )
+            )
+            return True
+        except Exception as exc:
+            logger.warning(f"{SIGN} 音乐组件卡片发送失败: {exc}")
+            return False
 
     async def _send_ark_card(self, event: AstrMessageEvent, song: Song, key: str) -> bool:
         if not song.audio_url or not song.cover_url:
