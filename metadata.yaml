@@ -1,11 +1,10 @@
 name: astrbot_plugin_allinone
 display_name: 聚合助手 AllInOne
-short_desc: 签到抽老婆 + 点歌 + 戳一戳 + QQ群管，LLM 调度 modules，不@也能插话
+short_desc: 签到抽老婆 + 点歌 + 戳一戳 + QQ群管，接入 AstrBot 默认 Agent 工具
 desc: >-
-  一站式聚合插件（调度器架构）：每日签到（吉凶运势/积分/连签）、每日老婆（多图源，默认漫朔）、
-  QQ点歌、戳一戳、QQ 群管。以自然语言为主驱动：20+ LLM 函数工具 +
-  上下文主动感知插话（不@也能触发，keyword/llm 双模式），意图经 dispatcher 路由到
-  modules 层。QQ 专属功能自动降级，其他插件能力保持全平台可用。
+  一站式聚合插件（默认 Agent 工具）：每日签到（吉凶运势/积分/连签）、每日老婆（多图源，默认漫朔）、
+  QQ点歌、戳一戳、QQ 群管。通过 20+ LLM 函数工具接入 AstrBot 默认对话与主动回复管线。
+  QQ 专属功能自动降级，其他插件能力保持全平台可用。
 version: v1.1.1
 author: tree-people-Z
 repo: https://github.com/tree-people-Z/astrbot_plugin_allinone

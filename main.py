@@ -15,7 +15,6 @@ from astrbot.api.star import Context, Star
 
 from .core.config import Config
 from .core.core import Core
-from .core.dispatcher import Dispatcher
 from .core.utils import (
     group_id_of,
     is_aiocqhttp,
@@ -23,7 +22,6 @@ from .core.utils import (
     sender_id_of,
     truncate,
 )
-from .modules.chatter import ChatterModule
 from .modules.checkin_wife import CheckinWifeModule
 from .modules.group_admin import AdminModule
 from .modules.music import MusicModule
@@ -40,16 +38,6 @@ class AllInOnePlugin(Star):
         self.music = MusicModule(self.core)
         self.poke = PokeFactory(self.core)
         self.admin = AdminModule(self.core)
-        self.dispatcher = Dispatcher(
-            self.core,
-            {
-                "checkin_wife": self.checkin_wife,
-                "music": self.music,
-                "poke": self.poke,
-                "admin": self.admin,
-            },
-        )
-        self.chatter = ChatterModule(self.core, self.dispatcher)
 
     async def initialize(self):
         await self.core.start()
@@ -64,9 +52,6 @@ class AllInOnePlugin(Star):
 
     def commands_on(self) -> bool:
         return self.core.cfg.bool("command_enable", False)
-
-    def llm_on(self) -> bool:
-        return self.core.cfg.bool("llm_enable", True)
 
     def module_enabled(self, key: str) -> bool:
         return self.core.cfg.bool(key, True)
@@ -433,7 +418,10 @@ class AllInOnePlugin(Star):
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_qq_event(self, event: AstrMessageEvent):
-        """QQ 事件监听：上下文感知插话 + 戳一戳响应 + 违禁词/刷屏/宵禁"""
+        """QQ 事件监听：戳一戳响应 + 违禁词/刷屏/宵禁。
+
+        普通自然语言对话和主动回复统一交给 AstrBot 默认 Agent 管线。
+        """
         if getattr(event, "is_at_or_wake_command", False):
             return
 
@@ -452,21 +440,6 @@ class AllInOnePlugin(Star):
                 handled = await self.admin.enforce_curfew(event)
             if handled:
                 event.stop_event()
-
-        try:
-            await self.chatter.handle(event)
-        except Exception as exc:
-            logger.warning(f"{SIGN} 插话调度异常: {exc}")
-
-    @filter.event_message_type(filter.EventMessageType.ALL)
-    async def on_any_event(self, event: AstrMessageEvent):
-        """非 QQ 平台事件监听：上下文感知插话（QQ 已由 on_qq_event 处理）"""
-        if getattr(event, "is_at_or_wake_command", False) or is_aiocqhttp(event):
-            return
-        try:
-            await self.chatter.handle(event)
-        except Exception as exc:
-            logger.warning(f"{SIGN} 插话调度异常: {exc}")
 
     # ============================================================
     #  LLM 能力注入

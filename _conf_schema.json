@@ -16,12 +16,6 @@
     "hint": "如 http://127.0.0.1:7890，留空表示不使用代理。",
     "default": ""
   },
-  "llm_enable": {
-    "description": "启用 LLM 函数工具（自然语言驱动）",
-    "type": "bool",
-    "hint": "开启后可用自然语言（@机器人/唤醒前缀）触发签到、点歌、戳人、群管等能力。",
-    "default": true
-  },
   "command_enable": {
     "description": "启用传统指令",
     "type": "bool",
@@ -279,45 +273,5 @@
     "description": "启用群管进阶功能（头衔/上管/群名/群头像/精华）",
     "type": "bool",
     "default": false
-  },
-  "chatter_enable": {
-    "description": "启用上下文主动感知插话",
-    "type": "bool",
-    "hint": "不@也能触发：监听全群消息，在合适语境下主动接话或调度功能。AstrBot 自身主动回复关闭后依然有效。",
-    "default": true
-  },
-  "chatter_mode": {
-    "description": "插话决策模式",
-    "type": "string",
-    "options": ["keyword", "llm"],
-    "hint": "keyword：命中关键词才决策（低频省钱）；llm：每条消息都参与决策（受冷却与概率约束）。",
-    "default": "keyword"
-  },
-  "chatter_keywords": {
-    "description": "插话触发关键词",
-    "type": "list",
-    "default": ["签到", "排行", "积分", "老婆", "点歌", "听歌", "唱歌", "戳", "禁言", "踢", "公告", "宵禁"]
-  },
-  "chatter_cooldown": {
-    "description": "同群插话冷却（秒）",
-    "type": "int",
-    "default": 60
-  },
-  "chatter_prob": {
-    "description": "关键词命中后插话概率",
-    "type": "float",
-    "hint": "0-1，避免频繁打扰；点名/被@的语态不受此概率约束。",
-    "default": 0.7
-  },
-  "chatter_history": {
-    "description": "决策参考的最近对话条数",
-    "type": "int",
-    "default": 8
-  },
-  "chatter_use_persona": {
-    "description": "插话遵循 AstrBot 人设",
-    "type": "bool",
-    "hint": "开启后，不@的插话与闲聊会按当前会话的人设（persona）语气说话；未配置人设时为通用语气。",
-    "default": true
   }
 }

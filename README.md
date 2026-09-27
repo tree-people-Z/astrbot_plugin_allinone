@@ -19,36 +19,26 @@
 
 老婆图源 `waifu_source`：`manshuo`（默认，漫朔图库高清图 + AI 标签）/ `manshuo_trace`（漫朔图 + trace.moe 反查出处）/ `anilist` / `kitsu`。
 
-## 🗣️ 自然语言驱动（不@ 也能触发）
+## 🗣️ 自然语言驱动
 
 本插件**以自然语言为主、指令为兜底**（指令默认关闭）：
 
-- **LLM 函数工具**：注册 20+ 函数工具，正常 @机器人 对话时，模型可自主调度签到、点歌、戳人、群管等能力。
-- **上下文主动感知插话**（`chatter`）：即使 AstrBot 的主动回复/唤醒关闭，插件也会监听全群消息——
+- **统一使用 AstrBot 默认 Agent 管线**：默认 LLM 负责普通对话、主动回复和工具调用；本插件通过 `@filter.llm_tool` 提供签到、老婆、点歌、戳一戳、群管等能力。主动回复请在 AstrBot 的 `provider_ltm_settings.active_reply` 中配置。
 
-  1. 记住每群最近 14 条对话；
-  2. 按模式与冷却/概率决定是否决策（`keyword` 模式命中「签到/老婆/点歌…」才决策，`llm` 模式每条都决策）；
-  3. LLM 返回 `{reply, intent, args}` JSON 决策，**调度器（dispatcher）按意图路由到 modules 层**，把结果发回群里；
-  4. 群级冷却默认 60 秒、插话概率 0.7，避免刷屏；LLM 不可用时自动退回本地正则规则；
-  5. 插话与闲聊**遵循 AstrBot 人设**：决策时读取当前会话 persona（`chatter_use_persona`，默认开），语气/称呼与人格一致。
-
-  > 不 @ 也能触发的原理：只要插件注册了消息监听器，AstrBot 会把每条群消息激活给它；@ 只约束 AstrBot 内置 LLM 管线，不影响插件自主感知与调度。
-
-## 🧩 调度器架构（方便加功能）
+## 🧩 工具架构（方便加功能）
 
 ```
-消息 ──→ on_qq_event / on_any_event（监听）
+消息 ──→ AstrBot 默认 Agent 管线
           ├─ poke 事件 → poke 模块
           ├─ 违禁词/刷屏/宵禁 → admin 模块
-          └─ chatter 上下文感知 ──→ LLM 决策 JSON ──→ dispatcher.dispatch(intent, args)
-                                                        │
-                                                        ├→ checkin_wife 模块（签到/老婆/积分）
-                                                        ├→ music 模块（点歌/歌词/歌单）
-                                                        ├→ poke 模块（戳人）
-                                                        └→ admin 模块（群管）
+          └─ LLM 工具调用 → modules 层
+                              ├→ checkin_wife（签到/老婆/积分）
+                              ├→ music（点歌/歌词/歌单）
+                              ├→ poke（戳人）
+                              └→ admin（群管）
 ```
 
-**加新功能三步**：modules/ 写方法（返回 str 或消息链）→ `core/dispatcher.py` 的 `INTENT`（`do_xxx` 方法）加映射 → 在 `PROMPT_INTENTS`/`PATTERN_INTENTS` 补意图说明。
+**加新功能三步**：modules/ 写方法 → 在 `main.py` 注册 `@filter.llm_tool` → 在能力提示中补充工具说明。
 
 ### QQ点歌
 | 指令 | 说明 |
@@ -97,7 +87,9 @@ WebUI 插件配置页可修改；关键项：
 | `music_record_link` | `false` | 附带语音发送 |
 | `poke_*` | 见配置 | 戳一戳权重/冷却/池 |
 | `admin_*` | 见配置 | 群管默认值/违禁词/刷屏/宵禁/进阶 |
-| `llm_enable` / `llm_capability_hint` | `true` / `true` | LLM 融合开关 |
+| `llm_capability_hint` | `true` | 是否向默认 LLM 注入本插件工具能力提示 |
+
+> AstrBot 官方主动回复由 AstrBot 配置中的 `provider_ltm_settings.active_reply` 管理，不再由插件维护独立的 chatter 缓存或决策器。
 
 ## 🗂 数据存储
 
