@@ -62,6 +62,10 @@ class AllInOnePlugin(Star):
     async def _targets(self, event: AstrMessageEvent, target: str = "") -> list[str]:
         return await resolve_targets(event, target)
 
+    async def _send_tool_text(self, event: AstrMessageEvent, text: str) -> str:
+        await event.send(event.plain_result(text))
+        return "结果已直接发送给用户，无需复述。"
+
     # ============================================================
     #  LLM 工具（主入口）
     # ============================================================
@@ -70,20 +74,20 @@ class AllInOnePlugin(Star):
 
     @filter.llm_tool(name="checkin")
     async def tool_checkin(self, event: AstrMessageEvent):
-        """为当前用户执行每日签到，返回吉凶运势与获得积分结果。"""
+        """为当前用户执行每日签到，直接发送完整签到结果。"""
         if not self.module_enabled("checkin_enable"):
             return "签到功能未启用。"
-        return await self.checkin_wife.checkin(event)
+        return await self._send_tool_text(event, await self.checkin_wife.checkin(event))
 
     @filter.llm_tool(name="query_my_info")
     async def tool_my_info(self, event: AstrMessageEvent):
         """查询当前用户的累计积分、连续签到天数与今日老婆。"""
-        return await self.checkin_wife.my_info(event)
+        return await self._send_tool_text(event, await self.checkin_wife.my_info(event))
 
     @filter.llm_tool(name="show_leaderboard")
     async def tool_leaderboard(self, event: AstrMessageEvent):
         """查看积分排行榜前 10 名。"""
-        return await self.checkin_wife.leaderboard(event)
+        return await self._send_tool_text(event, await self.checkin_wife.leaderboard(event))
 
     # ----- 每日老婆 -----
 
@@ -107,7 +111,7 @@ class AllInOnePlugin(Star):
         if isinstance(result, list):
             await event.send(event.chain_result(result))
             return "已为用户换到新的老婆。"
-        return str(result)
+        return await self._send_tool_text(event, str(result))
 
     # ----- 点歌（QQ音乐） -----
 
@@ -119,11 +123,11 @@ class AllInOnePlugin(Star):
             keyword(string): 歌名或歌手等关键词
         """
         songs = await self.music.search(truncate(keyword, 60))
-        return self.music.format_songs(songs)
+        return await self._send_tool_text(event, self.music.format_songs(songs))
 
     @filter.llm_tool(name="play_music")
     async def tool_play_music(self, event: AstrMessageEvent, keyword: str, index: int = 1):
-        """搜索并播放歌曲，会直接发送歌曲信息与链接（可选语音）。
+        """搜索并播放歌曲，优先发送音乐卡片，失败时回退语音或链接。
 
         Args:
             keyword(string): 歌名或歌手等关键词
@@ -146,9 +150,10 @@ class AllInOnePlugin(Star):
         """
         songs = await self.music.search(truncate(keyword, 60), 1)
         if not songs:
-            return f"没有找到《{keyword}》。"
+            return await self._send_tool_text(event, f"没有找到《{keyword}》。")
         lyric = await self.music.lyrics_of(songs[0])
-        return lyric or "未找到歌词。"
+        text = f"📃 {songs[0].name} 歌词：\n{truncate(lyric, 1200)}" if lyric else "未找到歌词。"
+        return await self._send_tool_text(event, text)
 
     @filter.llm_tool(name="add_to_playlist")
     async def tool_add_playlist(self, event: AstrMessageEvent, keyword: str):
@@ -159,13 +164,15 @@ class AllInOnePlugin(Star):
         """
         songs = await self.music.search(truncate(keyword, 60), 1)
         if not songs:
-            return f"没有找到《{keyword}》。"
-        return await self.music.save_to_playlist(event, songs[0])
+            return await self._send_tool_text(event, f"没有找到《{keyword}》。")
+        return await self._send_tool_text(
+            event, await self.music.save_to_playlist(event, songs[0])
+        )
 
     @filter.llm_tool(name="show_my_playlist")
     async def tool_show_playlist(self, event: AstrMessageEvent):
         """查看当前用户的歌单。"""
-        return await self.music.show_playlist(event)
+        return await self._send_tool_text(event, await self.music.show_playlist(event))
 
     @filter.llm_tool(name="play_from_playlist")
     async def tool_play_playlist(self, event: AstrMessageEvent, index: int):
@@ -184,7 +191,9 @@ class AllInOnePlugin(Star):
             index(number): 歌单序号，从 1 开始
         """
         name = await self.core.db.playlist_remove(sender_id_of(event), int(index))
-        return f"已移除《{name}》" if name else "没有这条记录。"
+        return await self._send_tool_text(
+            event, f"已移除《{name}》" if name else "没有这条记录。"
+        )
 
     # ----- 戳一戳（QQ） -----
 
@@ -205,7 +214,7 @@ class AllInOnePlugin(Star):
             return "没有找到要戳的目标。"
         bounded = max(1, min(self.core.cfg.int("poke_max_times", 5), int(times) or 1))
         await self.poke.send_poke(event, targets, bounded)
-        return f"已戳 {('、'.join(targets))} 共 {bounded} 次"
+        return await self._send_tool_text(event, f"已戳 {('、'.join(targets))} 共 {bounded} 次")
 
     # ----- 群管（QQ） -----
 
@@ -220,7 +229,7 @@ class AllInOnePlugin(Star):
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
         targets = await self._targets(event, target)
-        return await self.admin.ban(event, int(duration), targets)
+        return await self._send_tool_text(event, await self.admin.ban(event, int(duration), targets))
 
     @filter.llm_tool(name="unban_group_user")
     async def tool_unban_user(self, event: AstrMessageEvent, target: str = ""):
@@ -232,7 +241,7 @@ class AllInOnePlugin(Star):
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
         targets = await self._targets(event, target)
-        return await self.admin.unban(event, targets)
+        return await self._send_tool_text(event, await self.admin.unban(event, targets))
 
     @filter.llm_tool(name="set_whole_ban")
     async def tool_whole_ban(self, event: AstrMessageEvent, enable: bool = True):
@@ -243,7 +252,7 @@ class AllInOnePlugin(Star):
         """
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
-        return await self.admin.whole_ban(event, bool(enable))
+        return await self._send_tool_text(event, await self.admin.whole_ban(event, bool(enable)))
 
     @filter.llm_tool(name="kick_group_user")
     async def tool_kick_user(self, event: AstrMessageEvent, target: str = "", block: bool = False):
@@ -256,7 +265,7 @@ class AllInOnePlugin(Star):
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
         targets = await self._targets(event, target)
-        return await self.admin.kick(event, bool(block), targets)
+        return await self._send_tool_text(event, await self.admin.kick(event, bool(block), targets))
 
     @filter.llm_tool(name="recall_group_messages")
     async def tool_recall(self, event: AstrMessageEvent, target: str = "", count: int = 10):
@@ -270,7 +279,7 @@ class AllInOnePlugin(Star):
             return "群管仅支持 QQ 平台。"
         targets = await self._targets(event, target)
         target_id = targets[0] if targets else ""
-        return await self.admin.recall(event, int(count), target_id)
+        return await self._send_tool_text(event, await self.admin.recall(event, int(count), target_id))
 
     @filter.llm_tool(name="rename_group_member")
     async def tool_rename_member(self, event: AstrMessageEvent, target: str, card: str):
@@ -283,7 +292,9 @@ class AllInOnePlugin(Star):
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
         targets = await self._targets(event, target)
-        return await self.admin.set_member_card(event, truncate(card, 40), targets)
+        return await self._send_tool_text(
+            event, await self.admin.set_member_card(event, truncate(card, 40), targets)
+        )
 
     @filter.llm_tool(name="send_group_notice")
     async def tool_notice(self, event: AstrMessageEvent, content: str):
@@ -294,7 +305,9 @@ class AllInOnePlugin(Star):
         """
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
-        return await self.admin.send_notice(event, truncate(content, 600))
+        return await self._send_tool_text(
+            event, await self.admin.send_notice(event, truncate(content, 600))
+        )
 
     @filter.llm_tool(name="set_group_badwords")
     async def tool_set_badwords(self, event: AstrMessageEvent, words: str = ""):
@@ -307,13 +320,13 @@ class AllInOnePlugin(Star):
             return "群管仅支持 QQ 平台。"
         tokens = [w for w in words.replace("，", " ").replace(",", " ").split() if w]
         if not tokens:
-            return await self.admin.list_badwords(event)
-        return await self.admin.set_badword(event, tokens)
+            return await self._send_tool_text(event, await self.admin.list_badwords(event))
+        return await self._send_tool_text(event, await self.admin.set_badword(event, tokens))
 
     @filter.llm_tool(name="show_group_badwords")
     async def tool_show_badwords(self, event: AstrMessageEvent):
         """查看当前群的自定义违禁词与内置违禁词开关。"""
-        return await self.admin.list_badwords(event)
+        return await self._send_tool_text(event, await self.admin.list_badwords(event))
 
     @filter.llm_tool(name="set_curfew")
     async def tool_set_curfew(self, event: AstrMessageEvent, start: str = "", end: str = ""):
@@ -325,14 +338,16 @@ class AllInOnePlugin(Star):
         """
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
-        return await self.admin.set_curfew(event, start or None, end or None)
+        return await self._send_tool_text(
+            event, await self.admin.set_curfew(event, start or None, end or None)
+        )
 
     @filter.llm_tool(name="disable_curfew")
     async def tool_disable_curfew(self, event: AstrMessageEvent):
         """关闭本群宵禁。"""
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
-        return await self.admin.set_curfew(event, None, None)
+        return await self._send_tool_text(event, await self.admin.set_curfew(event, None, None))
 
     @filter.llm_tool(name="set_member_title")
     async def tool_set_title(self, event: AstrMessageEvent, target: str, title: str):
@@ -345,7 +360,9 @@ class AllInOnePlugin(Star):
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
         targets = await self._targets(event, target)
-        return await self.admin.set_special_title(event, truncate(title, 20), targets)
+        return await self._send_tool_text(
+            event, await self.admin.set_special_title(event, truncate(title, 20), targets)
+        )
 
     @filter.llm_tool(name="set_group_admin")
     async def tool_set_admin(self, event: AstrMessageEvent, target: str, enable: bool = True):
@@ -358,7 +375,9 @@ class AllInOnePlugin(Star):
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
         targets = await self._targets(event, target)
-        return await self.admin.set_admin_perm(event, bool(enable), targets)
+        return await self._send_tool_text(
+            event, await self.admin.set_admin_perm(event, bool(enable), targets)
+        )
 
     @filter.llm_tool(name="rename_group")
     async def tool_rename_group(self, event: AstrMessageEvent, group_name: str):
@@ -369,28 +388,30 @@ class AllInOnePlugin(Star):
         """
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
-        return await self.admin.set_group_name(event, truncate(group_name, 30))
+        return await self._send_tool_text(
+            event, await self.admin.set_group_name(event, truncate(group_name, 30))
+        )
 
     @filter.llm_tool(name="set_group_portrait")
     async def tool_group_portrait(self, event: AstrMessageEvent):
         """使用当前消息引用的图片设置群头像（需管理员）。"""
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
-        return await self.admin.set_group_portrait(event)
+        return await self._send_tool_text(event, await self.admin.set_group_portrait(event))
 
     @filter.llm_tool(name="list_group_members")
     async def tool_list_members(self, event: AstrMessageEvent):
         """查看本群成员概况。"""
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
-        return await self.admin.group_members_info(event)
+        return await self._send_tool_text(event, await self.admin.group_members_info(event))
 
     # ----- 元信息 -----
 
     @filter.llm_tool(name="allinone_help")
     async def tool_help(self, event: AstrMessageEvent):
         """列出本插件当前可用的能力（供自然语言使用时参考）。"""
-        return self.capability_help(event)
+        return await self._send_tool_text(event, self.capability_help(event))
 
     def capability_help(self, event: AstrMessageEvent) -> str:
         lines = ["我可以为你做这些事（直接用自然语言告诉我就行）："]
@@ -491,7 +512,7 @@ class AllInOnePlugin(Star):
         """每日签到，抽取吉凶运势并获得积分"""
         if not self.commands_on():
             return
-        yield event.plain_result(await self.checkin_wife.checkin(event))
+        await event.send(event.plain_result(await self.checkin_wife.checkin(event)))
         event.stop_event()
 
     @filter.command("我的信息", alias={"我的积分"})

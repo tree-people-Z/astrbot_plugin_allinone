@@ -79,7 +79,7 @@
   "waifu_source": {
     "description": "每日老婆图源",
     "type": "string",
-    "options": ["manshuo", "manshuo_trace", "anilist", "kitsu", "local"],
+    "options": ["manshuo", "local"],
     "default": "manshuo"
   },
   "local_wife_paths": {
@@ -93,23 +93,6 @@
     "type": "bool",
     "hint": "开启后使用图片文件名（不含扩展名）显示人物名称；关闭后不显示人物名称。",
     "default": true
-  },
-  "manshuo_base_url": {
-    "description": "漫朔图库地址",
-    "type": "string",
-    "default": "https://web.manshuo.ink"
-  },
-  "manshuo_api_key": {
-    "description": "漫朔图库 API Key",
-    "type": "string",
-    "hint": "漫朔 X-API-Key，可留空。",
-    "default": "",
-    "secret": true
-  },
-  "trace_moe_base_url": {
-    "description": "trace.moe 反查地址",
-    "type": "string",
-    "default": "https://api.trace.moe/search"
   },
   "change_wife_cost": {
     "description": "换老婆消耗积分",
@@ -155,15 +138,15 @@
     "default": "text"
   },
   "music_record_link": {
-    "description": "附带语音链接发送",
+    "description": "卡片失败后尝试发送语音",
     "type": "bool",
-    "hint": "开启后尝试以语音形式发送歌曲，失败时仍会发送文本链接。",
+    "hint": "普通卡片和签名卡片都未发送成功时，尝试发送语音；失败后发送文本链接。",
     "default": false
   },
   "music_send_card": {
     "description": "发送 QQ 音乐卡片",
     "type": "bool",
-    "hint": "开启后点歌时优先发送 QQ 音乐卡片，同时保留普通图片、语音和链接作为兼容内容。",
+    "hint": "仅 QQ OneBot：先发送普通音乐卡片；失败且已配置 API Key 时尝试签名卡片，最后回退语音或文本。",
     "default": true
   },
   "music_enable_comments": {
@@ -184,6 +167,7 @@
   "music_card_api_key": {
     "description": "签名卡片 API Key（可选）",
     "type": "string",
+    "hint": "apii.xianyuw.cn 的 API Key；普通音乐卡片失败时用于请求签名 Ark 卡片。",
     "default": "",
     "secret": true
   },

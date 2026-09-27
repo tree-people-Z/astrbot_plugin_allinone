@@ -6,7 +6,7 @@ import json
 import random
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import quote
+from uuid import uuid4
 
 import astrbot.api.message_components as Comp
 from astrbot.api import logger
@@ -155,130 +155,19 @@ class CheckinWifeModule:
 
     # ---------- 老婆图源 ----------
 
-    def _manshuo_headers(self) -> dict:
-        headers = {}
-        key = self.core.cfg.str("manshuo_api_key")
-        if key:
-            headers["X-API-Key"] = key
-        return headers
-
-    async def _draw_kitsu(self) -> dict | None:
-        headers = {"Accept": "application/vnd.api+json"}
-        base = "https://kitsu.io/api/edge/characters"
-        for offset in (random.randint(0, 90000), random.randint(0, 1000)):
-            data = await self.http.get_json(
-                f"{base}?page%5Blimit%5D=1&page%5Boffset%5D={offset}", headers=headers
-            )
-            items = (data.get("data") if isinstance(data, dict) else None) or []
-            if not items:
-                continue
-            attrs = items[0].get("attributes") or {}
-            image = (attrs.get("image") or {}).get("original")
-            if not image:
-                continue
-            names = attrs.get("names") or {}
-            name = str(attrs.get("canonicalName") or names.get("en") or "")
-            return {"name": name, "label": "角色", "image": image, "desc": "", "source": "Kitsu"}
-        return None
-
-    async def _draw_anilist(self) -> dict | None:
-        page = random.randint(1, 150)
-        payload = {
-            "query": "query($p:Int){Page(page:$p,perPage:1){characters(sort:FAVOURITES_DESC)"
-            "{name{full native}image{large}description}}}",
-            "variables": {"p": page},
-        }
-        data = await self.http.post_json("https://graphql.anilist.co", data=payload)
-        chars = (((data or {}).get("data") or {}).get("Page") or {}).get("characters") or []
-        if not chars:
-            return None
-        char = chars[0]
-        image = (char.get("image") or {}).get("large")
-        if not image:
-            return None
-        names = char.get("name") or {}
-        if names.get("native") and names.get("full"):
-            name = f"{names['full']}（{names['native']}）"
-        else:
-            name = str(names.get("full") or names.get("native") or "")
-        desc = char.get("description") or ""
-        for token in (
-            "<br>",
-            "<br/>",
-            "<i>",
-            "</i>",
-            "<em>",
-            "</em>",
-            "__",
-            "**",
-            "~~",
-            "~!",
-            "!~",
-        ):
-            desc = desc.replace(token, " ")
-        from ..core.utils import truncate
-
-        return {
-            "name": name,
-            "label": "角色",
-            "image": image,
-            "desc": truncate(desc),
-            "source": "AniList",
-        }
-
     async def _draw_manshuo(self) -> dict | None:
-        base = self.core.cfg.str("manshuo_base_url", "https://web.manshuo.ink").rstrip("/")
-        for offset in (random.randint(0, 16000), 0):
-            data = await self.http.get_json(
-                f"{base}/api/img/today_wife/list?limit=1&offset={offset}",
-                headers=self._manshuo_headers(),
-            )
-            items = (((data or {}).get("data") or {}).get("items")) or []
-            if not items:
-                continue
-            item = items[0]
-            image = (
-                item.get("full_url") or item.get("download_url") or item.get("thumbnail_full_url")
-            )
-            if not image:
-                continue
-            tags = [str(t) for t in (item.get("tags") or []) if t]
-            name = "、".join(tags[:5]) if tags else str(item.get("display_name") or "")
-            return {
-                "name": name,
-                "label": "标签",
-                "image": image,
-                "desc": "来自漫朔图库",
-                "source": "漫朔",
-            }
-        return None
-
-    async def _draw_manshuo_trace(self) -> dict | None:
-        result = await self._draw_manshuo()
-        if not result:
+        image_dir = self.core.data_dir / "wife_images"
+        image_dir.mkdir(parents=True, exist_ok=True)
+        image = image_dir / f"{uuid4().hex}.jpg"
+        if not await self.http.download("https://web.manshuo.ink/api/img/today_wife", str(image)):
+            image.unlink(missing_ok=True)
             return None
-        trace_base = self.core.cfg.str("trace_moe_base_url", "https://api.trace.moe/search")
-        data = await self.http.get_json(
-            f"{trace_base}?anilistInfo=1&url={quote(result['image'], safe='')}"
-        )
-        results = (data or {}).get("result") or []
-        if results:
-            anime = results[0].get("anilist") or {}
-            title = anime.get("title") or {}
-            title_name = (
-                title.get("chinese")
-                or title.get("romaji")
-                or title.get("native")
-                or title.get("english")
-            )
-            if title_name:
-                extra = f"出自《{title_name}》"
-                episode = results[0].get("episode")
-                if episode:
-                    extra += f" 第{episode}集"
-                result["desc"] = extra
-                result["source"] = "漫朔 + trace.moe"
-        return result
+        return {
+            "name": "",
+            "image": str(image),
+            "source": "漫朔",
+            "local": True,
+        }
 
     def _local_wife_files(self) -> list[Path]:
         """Expand configured local files/directories into supported image files."""
@@ -305,9 +194,7 @@ class CheckinWifeModule:
         use_filename = self.core.cfg.bool("local_wife_name_from_filename", True)
         return {
             "name": image.stem if use_filename else "",
-            "label": "角色",
             "image": str(image.resolve()),
-            "desc": "来自本地图片库",
             "source": "本地图库",
             "local": True,
         }
@@ -315,12 +202,6 @@ class CheckinWifeModule:
     async def draw_wife(self) -> dict | None:
         source = self.core.cfg.str("waifu_source", "manshuo").lower()
         try:
-            if source == "anilist":
-                return await self._draw_anilist()
-            if source == "manshuo":
-                return await self._draw_manshuo()
-            if source == "manshuo_trace":
-                return await self._draw_manshuo_trace()
             if source == "local":
                 return await self._draw_local()
             return await self._draw_manshuo()

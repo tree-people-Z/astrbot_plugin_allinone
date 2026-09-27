@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
+import aiohttp
 import astrbot.api.message_components as Comp
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
@@ -12,6 +14,7 @@ from ..core.core import Core
 from ..core.utils import sender_id_of, truncate
 
 SIGN = "[allinone:music]"
+ARK_CARD_URL = "https://apii.xianyuw.cn/api/v1/qq-musicArk"
 
 COMMAND_HEADS = ("点歌", "点播", "qq点歌")
 
@@ -106,11 +109,9 @@ class MusicModule:
             session_waiter,
         )
 
-        for position, song in enumerate(songs, 1):
-            await event.send(event.plain_result(f"{position}. 《{song.name}》- {song.artists}"))
-        await event.send(
-            event.plain_result(f"请回复序号选择歌曲（1-{len(songs)}），回复 取消 退出：")
-        )
+        lines = [f"{position}. 《{song.name}》- {song.artists}" for position, song in enumerate(songs, 1)]
+        lines.append(f"请回复序号选择歌曲（1-{len(songs)}），回复 取消 退出：")
+        await event.send(event.plain_result("\n".join(lines)))
 
         selected: Song | None = None
 
@@ -137,44 +138,106 @@ class MusicModule:
 
     # ---------- 发送 ----------
 
-    def build_chain(self, song: Song) -> list:
-        chain: list = []
-        info = f"🎵 {song.name} - {song.artists}\n🔗 {song.link or song.audio_url}"
-        if song.song_id and self.core.cfg.bool("music_send_card", True):
-            try:
-                if song.song_id.isdigit():
-                    chain.append(Comp.Music(type="qq", id=int(song.song_id)))
-                elif song.link and song.audio_url:
-                    chain.append(
-                        Comp.Music(
-                            type="custom",
-                            url=song.link,
-                            audio=song.audio_url,
-                            title=song.name,
-                            content=song.artists,
-                            image=song.cover_url,
-                        )
-                    )
-            except Exception as exc:
-                logger.warning(f"{SIGN} 构造音乐卡片失败，将发送普通消息: {exc}")
-        if song.cover_url:
-            chain.append(Comp.Image.fromURL(song.cover_url))
-        if song.audio_url and self.core.cfg.bool("music_record_link", False):
-            chain.append(Comp.Record(file=song.audio_url, url=song.audio_url))
-        chain.append(Comp.Plain(info))
-        return chain
+    async def _send_onebot(self, event: AstrMessageEvent, segment: dict) -> bool:
+        try:
+            target = (
+                {"user_id": event.get_sender_id()}
+                if event.is_private_chat()
+                else {"group_id": event.get_group_id()}
+            )
+            action = "send_private_msg" if event.is_private_chat() else "send_group_msg"
+            result = await event.bot.api.call_action(action, message=[segment], **target)
+            return isinstance(result, dict) and result.get("message_id") is not None
+        except Exception as exc:
+            logger.warning(f"{SIGN} OneBot 音乐卡片发送失败: {exc}")
+            return False
+
+    async def _send_card(self, event: AstrMessageEvent, song: Song) -> bool:
+        if not song.audio_url:
+            return False
+        return await self._send_onebot(
+            event,
+            {
+                "type": "music",
+                "data": {
+                    "type": "custom",
+                    "url": song.audio_url,
+                    "audio": song.audio_url,
+                    "title": song.name,
+                    "image": song.cover_url,
+                    "singer": song.artists,
+                },
+            },
+        )
+
+    async def _send_ark_card(self, event: AstrMessageEvent, song: Song, key: str) -> bool:
+        if not song.audio_url or not song.cover_url:
+            return False
+        session = self.core.http.session
+        if session is None:
+            await self.core.http.start()
+            session = self.core.http.session
+        assert session is not None
+        params = {
+            "key": key,
+            "url": song.audio_url,
+            "song": song.name,
+            "singer": song.artists,
+            "cover": song.cover_url,
+            "jump": song.audio_url,
+            "format": "qq",
+        }
+        try:
+            async with session.get(
+                ARK_CARD_URL,
+                params=params,
+                proxy=self.core.cfg.str("http_proxy") or None,
+            ) as response:
+                if response.status != 200:
+                    logger.warning(f"{SIGN} 签名卡片服务返回 HTTP {response.status}")
+                    return False
+                result = await response.json(content_type=None)
+        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+            logger.warning(f"{SIGN} 签名卡片请求失败: {type(exc).__name__}")
+            return False
+        data = result.get("data") if isinstance(result, dict) else None
+        if not isinstance(data, dict) or result.get("code") != 200 or not {"app", "meta", "prompt", "view"} <= data.keys():
+            logger.warning(f"{SIGN} 签名卡片服务返回无效数据")
+            return False
+        return await self._send_onebot(
+            event, {"type": "json", "data": {"data": json.dumps(data, ensure_ascii=False)}}
+        )
 
     async def send_song(self, event: AstrMessageEvent, song: Song) -> str:
-        try:
-            await event.send(event.chain_result(self.build_chain(song)))
-            if self.core.cfg.bool("music_enable_lyrics", True):
-                lyric = await self.lyrics_of(song)
-                if lyric:
+        sent = False
+        if event.get_platform_name() == "aiocqhttp" and self.core.cfg.bool("music_send_card", True):
+            sent = await self._send_card(event, song)
+            key = self.core.cfg.str("music_card_api_key").strip()
+            if not sent and key:
+                sent = await self._send_ark_card(event, song, key)
+        if not sent and song.audio_url and self.core.cfg.bool("music_record_link", False):
+            try:
+                await event.send(event.chain_result([Comp.Record.fromURL(song.audio_url)]))
+                sent = True
+            except Exception as exc:
+                logger.warning(f"{SIGN} 语音链接发送失败: {exc}")
+        if not sent and (song.link or song.audio_url):
+            try:
+                info = f"🎵 {song.name} - {song.artists}\n🔗 {song.link or song.audio_url}"
+                await event.send(event.plain_result(info))
+                sent = True
+            except Exception as exc:
+                logger.warning(f"{SIGN} 歌曲链接发送失败: {exc}")
+        if not sent:
+            return f"歌曲《{song.name}》发送失败，暂无可用链接。"
+        if self.core.cfg.bool("music_enable_lyrics", True):
+            lyric = await self.lyrics_of(song)
+            if lyric:
+                try:
                     await event.send(event.plain_result(f"📃 歌词预览：\n{truncate(lyric, 600)}"))
-            return f"已发送歌曲《{song.name}》- {song.artists}"
-        except Exception as exc:
-            logger.warning(f"{SIGN} 发送歌曲失败: {exc}")
-            return f"发送歌曲失败：{truncate(str(exc), 80)}"
+                except Exception as exc:
+                    logger.warning(f"{SIGN} 歌词发送失败: {exc}")
+        return f"已发送歌曲《{song.name}》- {song.artists}"
 
     def format_songs(self, songs: list[Song]) -> str:
         if not songs:

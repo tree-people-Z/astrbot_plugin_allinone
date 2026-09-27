@@ -17,7 +17,7 @@
 | `/老婆`（今日老婆/每日老婆） | 每日一次，图 + 角色名/标签 |
 | `/换老婆` | 重抽，消耗积分，每日限次 |
 
-老婆图源 `waifu_source`：`manshuo`（默认，漫朔图库高清图 + AI 标签）/ `manshuo_trace`（漫朔图 + trace.moe 反查出处）/ `anilist` / `kitsu` / `local`（本地图片库）。
+老婆图源 `waifu_source`：`manshuo`（默认，调用漫朔今日老婆接口）/ `local`（本地图片库）。
 
 ## 🗣️ 自然语言驱动
 
@@ -47,7 +47,7 @@
 | `查歌词 <歌名>` | 查询歌词 |
 | `歌单添加 <歌名>` / `我的歌单` / `播放歌单 <序号>` / `删除歌单 <序号>` / `清空歌单` | 用户歌单 |
 
-> 音源为QQ音乐（聚合接口 `https://music.txqq.pro/`，可在配置中替换）。发送默认文本链接，`music_record_link` 开启后附带语音。
+> 音源为 QQ 音乐（聚合接口 `https://music.txqq.pro/`，可在配置中替换）。QQ OneBot 上优先发送普通音乐卡片；失败且配置了 `music_card_api_key` 时尝试签名 Ark 卡片，之后按配置尝试语音，最后回退文本链接。
 
 ### 戳一戳（仅 QQ)
 - 被戳按权重随机触发：反戳 / QQ表情 / 表情包 / LLM回复 / 禁言 / 触发命令
@@ -68,7 +68,7 @@
   `search_music`、`play_music`、`poke_user`、`ban_group_user`、`kick_group_user`、
   `recall_group_messages`、`rename_group`、`send_group_notice`
 - 每轮对话注入一小段能力提示（动态上下文，不污染 system prompt 缓存），让模型明确可用能力
-- 媒体类工具（点歌/老婆）内部主动发送音频与图片，只返回简要结果给模型
+- 签到、资料、排行榜、歌单、歌词、群管结果及媒体内容由插件直接发送完整消息，只向模型返回发送状态
 
 ## ⚙️ 配置
 
@@ -79,15 +79,15 @@ WebUI 插件配置页可修改；关键项：
 | `timezone` | `8` | 时区（自然日重置） |
 | `fortune_tiers` | 内置 9 级 | 运势等级/权重/积分区间 |
 | `streak_bonus_per_day` / `streak_bonus_cap` | `5` / `50` | 连签加成 |
-| `waifu_source` | `manshuo_trace` | 老婆图源 |
+| `waifu_source` | `manshuo` | 老婆图源 |
 | `local_wife_paths` | `[]` | 本地老婆图片文件或目录路径列表，`waifu_source=local` 时使用 |
 | `local_wife_name_from_filename` | `true` | 是否使用本地图片文件名（不含扩展名）作为人物名称 |
-| `manshuo_api_key` | 空 | 漫朔 API Key（密文） |
 | `change_wife_cost` / `change_wife_limit` | `30` / `2` | 换老婆 |
 | `leaderboard_scope` | `global` | 榜单范围 |
 | `music_agg_base_url` | `https://music.txqq.pro/` | 点歌聚合接口 |
-| `music_send_card` | `true` | 点歌时发送 QQ 音乐卡片 |
-| `music_record_link` | `false` | 附带语音发送 |
+| `music_send_card` | `true` | QQ OneBot 上尝试普通卡片和签名卡片 |
+| `music_card_api_key` | 空 | 签名 Ark 卡片服务的 API Key |
+| `music_record_link` | `false` | 卡片失败后尝试语音发送 |
 | `poke_*` | 见配置 | 戳一戳权重/冷却/池 |
 | `admin_*` | 见配置 | 群管默认值/违禁词/刷屏/宵禁/进阶 |
 | `llm_capability_hint` | `true` | 是否向默认 LLM 注入本插件工具能力提示 |
