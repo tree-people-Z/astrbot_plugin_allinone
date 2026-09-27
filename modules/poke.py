@@ -106,7 +106,7 @@ class PokeFactory:
                     logger.warning(f"{SIGN} 戳一戳失败 user_id={target_id}: {exc}")
                 await asyncio.sleep(self.core.cfg.float("poke_interval", 0.5))
 
-    async def handle_poked(self, event: AstrMessageEvent, info: PokeEventInfo) -> tuple:
+    async def handle_poked(self, event: AstrMessageEvent, info: PokeEventInfo):
         if not self.core.cfg.bool("poke_on", True):
             return None
         if info.is_self_send:
@@ -135,7 +135,7 @@ class PokeFactory:
         }.get(module)
         if handler is None:
             return None
-        return handler(event, info)
+        return await handler(event, info)
 
     def roll_module(self) -> str:
         weights = {

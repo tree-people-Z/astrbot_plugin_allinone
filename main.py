@@ -443,17 +443,20 @@ class AllInOnePlugin(Star):
 
         普通自然语言对话和主动回复统一交给 AstrBot 默认 Agent 管线。
         """
-        if getattr(event, "is_at_or_wake_command", False):
-            return
-
         if self.module_enabled("poke_enable"):
             info = self.poke.parse(event)
             if info:
-                async for reply in self.poke.handle_poked(event, info):
+                try:
+                    reply = await self.poke.handle_poked(event, info)
                     if reply is not None:
                         yield reply
+                except Exception as exc:
+                    logger.exception("[allinone:poke] 处理戳一戳事件失败: %s", exc)
                 event.stop_event()
                 return
+
+        if getattr(event, "is_at_or_wake_command", False):
+            return
 
         if self.module_enabled("admin_enable") and group_id_of(event):
             handled = await self.admin.auto_moderate(event)
