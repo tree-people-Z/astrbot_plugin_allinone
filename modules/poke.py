@@ -8,7 +8,7 @@ import time
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
-from astrbot.api.message_components import At, Face
+from astrbot.api.message_components import At, Face, Record
 
 from ..core.core import Core
 from ..core.utils import group_id_of, sender_id_of, sender_name_of
@@ -125,11 +125,13 @@ class PokeFactory:
                 return None
             return None
 
-        module = self.roll_module()
+        module = self.roll_module(event)
+        logger.debug(f"{SIGN} 触发响应模块: {module or 'none'}")
         handler = {
             "antipoke": self.respond_antipoke,
             "face": self.respond_face,
             "meme": self.respond_meme,
+            "record": self.respond_record,
             "ban": self.respond_ban,
             "llm": self.respond_llm,
         }.get(module)
@@ -137,16 +139,19 @@ class PokeFactory:
             return None
         return await handler(event, info)
 
-    def roll_module(self) -> str:
+    def roll_module(self, event: AstrMessageEvent) -> str:
         weights = {
             "antipoke": self.core.cfg.int("poke_weight_antipoke", 10),
-            "face": self.core.cfg.int("poke_weight_face", 10),
-            "meme": self.core.cfg.int("poke_weight_meme", 10),
             "llm": self.core.cfg.int("poke_weight_llm", 10),
-            "record": self.core.cfg.int("poke_weight_record", 0),
-            "ban": self.core.cfg.int("poke_weight_ban", 0),
-            "command": self.core.cfg.int("poke_weight_command", 0),
         }
+        if self.core.cfg.list("poke_face_pool", []):
+            weights["face"] = self.core.cfg.int("poke_weight_face", 10)
+        if self.core.cfg.list("poke_meme_pool", []):
+            weights["meme"] = self.core.cfg.int("poke_weight_meme", 10)
+        if self.core.cfg.list("poke_record_pool", []):
+            weights["record"] = self.core.cfg.int("poke_weight_record", 0)
+        if group_id_of(event):
+            weights["ban"] = self.core.cfg.int("poke_weight_ban", 0)
         items = [(key, weight) for key, weight in weights.items() if weight > 0]
         if not items:
             return ""
@@ -176,6 +181,13 @@ class PokeFactory:
             return None
         image = random.choice([str(x) for x in pool if x])
         return event.image_result(image)
+
+    async def respond_record(self, event: AstrMessageEvent, info: PokeEventInfo):
+        pool = self.core.cfg.list("poke_record_pool", [])
+        if not pool:
+            return None
+        audio = str(random.choice([item for item in pool if item]))
+        return event.chain_result([Record(file=audio, url=audio)])
 
     async def respond_ban(self, event: AstrMessageEvent, info: PokeEventInfo):
         group_id = group_id_of(event)

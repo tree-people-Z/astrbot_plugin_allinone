@@ -448,7 +448,11 @@ class AllInOnePlugin(Star):
             if info:
                 try:
                     reply = await self.poke.handle_poked(event, info)
-                    if reply is not None:
+                    if hasattr(reply, "__aiter__"):
+                        async for item in reply:
+                            if item is not None:
+                                yield item
+                    elif reply is not None:
                         yield reply
                 except Exception as exc:
                     logger.exception("[allinone:poke] 处理戳一戳事件失败: %s", exc)
