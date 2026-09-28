@@ -57,7 +57,7 @@ class AdminModule:
 
     async def perm_level(self, event: AstrMessageEvent, user_id: str) -> int:
         group_id = group_id_of(event)
-        config_admins = self.core.cfg.list("admin_superusers", [])
+        config_admins = {str(item) for item in self.core.cfg.list("admin_superusers", [])}
         if str(user_id) in config_admins:
             return 0
         try:
@@ -75,11 +75,17 @@ class AdminModule:
             return 4
 
     async def perm_block(
-        self, event: AstrMessageEvent, perm_key: str, bot_perm: int = 2
+        self,
+        event: AstrMessageEvent,
+        perm_key: str,
+        bot_perm: int = 2,
+        required_perm: int = 2,
     ) -> str | None:
+        if not group_id_of(event):
+            return "该管理员操作仅支持群聊"
         user_level = await self.perm_level(event, sender_id_of(event))
         gdata = await self.get_gdata(group_id_of(event))
-        required = int((gdata.get("perms") or {}).get(perm_key, 2))
+        required = int((gdata.get("perms") or {}).get(perm_key, required_perm))
         level_names = {0: "超管", 1: "群主", 2: "管理员", 3: "成员", 4: "未知"}
         if user_level > required:
             return f"你没有 {level_names.get(required, '管理员')} 权限"
@@ -282,6 +288,10 @@ class AdminModule:
         if not text.strip():
             return False
         target = sender_id_of(event)
+        if target == str(event.get_self_id()):
+            return False
+        if await self.perm_level(event, target) <= 2:
+            return False
 
         gdata = await self.get_gdata(group_id)
         badwords = list(gdata.get("badwords") or [])
@@ -362,11 +372,18 @@ class AdminModule:
             gdata["curfew"] = None
             await self.save_gdata(group_id_of(event), gdata)
             return "已关闭宵禁"
-        if not re.match(r"^\d{2}:\d{2}$", start) or not re.match(r"^\d{2}:\d{2}$", end):
+        if not self._valid_clock(start) or not self._valid_clock(end):
             return "时间格式：HH:MM HH:MM"
         gdata["curfew"] = {"start": start, "end": end}
         await self.save_gdata(group_id_of(event), gdata)
         return f"宵禁已设置：{start} - {end}"
+
+    @staticmethod
+    def _valid_clock(value: str) -> bool:
+        if not re.match(r"^\d{2}:\d{2}$", value):
+            return False
+        hour, minute = (int(part) for part in value.split(":"))
+        return 0 <= hour <= 23 and 0 <= minute <= 59
 
     def in_curfew(self, gdata: dict) -> bool:
         curfew = gdata.get("curfew")
@@ -388,6 +405,10 @@ class AdminModule:
     async def enforce_curfew(self, event: AstrMessageEvent) -> bool:
         group_id = group_id_of(event)
         if not group_id:
+            return False
+        if sender_id_of(event) == str(event.get_self_id()):
+            return False
+        if await self.perm_level(event, sender_id_of(event)) <= 2:
             return False
         gdata = await self.get_gdata(group_id)
         if not self.in_curfew(gdata):
@@ -413,7 +434,7 @@ class AdminModule:
     async def set_special_title(self, event: AstrMessageEvent, title: str, ats: list[str]):
         if not self.core.cfg.bool("admin_advanced_enable", False):
             return "进阶功能未启用，请在配置中打开 admin_advanced_enable"
-        blocked = await self.perm_block(event, "set_title")
+        blocked = await self.perm_block(event, "set_title", bot_perm=1, required_perm=1)
         if blocked:
             return blocked
         if not ats:
@@ -436,7 +457,7 @@ class AdminModule:
     async def set_admin_perm(self, event: AstrMessageEvent, enable: bool, ats: list[str]):
         if not self.core.cfg.bool("admin_advanced_enable", False):
             return "进阶功能未启用，请在配置中打开 admin_advanced_enable"
-        blocked = await self.perm_block(event, "set_admin")
+        blocked = await self.perm_block(event, "set_admin", bot_perm=1, required_perm=1)
         if blocked:
             return blocked
         if not ats:

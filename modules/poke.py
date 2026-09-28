@@ -30,6 +30,9 @@ class Cooldown:
     def mark_user(self, user_id: str):
         self.user_last[user_id] = time.time()
 
+    def mark_group(self, group_id: str):
+        self.group_last[group_id] = time.time()
+
     def check(self, table: dict, key: str, cd: float) -> bool:
         now_stamp = time.time()
         last = table.get(key)
@@ -118,6 +121,8 @@ class PokeFactory:
         ):
             return None
         self.cooldown.mark_user(info.user_id)
+        if info.group_id is not None:
+            self.cooldown.mark_group(str(info.group_id))
 
         if not info.is_self_poked:
             if random.random() < self.core.cfg.float("poke_follow_prob", 0.1):
@@ -176,17 +181,17 @@ class PokeFactory:
         return event.chain_result([Face(id=face_id)])
 
     async def respond_meme(self, event: AstrMessageEvent, info: PokeEventInfo):
-        pool = self.core.cfg.list("poke_meme_pool", [])
+        pool = [str(item) for item in self.core.cfg.list("poke_meme_pool", []) if item]
         if not pool:
             return None
-        image = random.choice([str(x) for x in pool if x])
+        image = random.choice(pool)
         return event.image_result(image)
 
     async def respond_record(self, event: AstrMessageEvent, info: PokeEventInfo):
-        pool = self.core.cfg.list("poke_record_pool", [])
+        pool = [str(item) for item in self.core.cfg.list("poke_record_pool", []) if item]
         if not pool:
             return None
-        audio = str(random.choice([item for item in pool if item]))
+        audio = random.choice(pool)
         return event.chain_result([Record(file=audio, url=audio)])
 
     async def respond_ban(self, event: AstrMessageEvent, info: PokeEventInfo):
