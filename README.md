@@ -13,9 +13,11 @@
 | --- | --- |
 | `/签到`（打卡） | 9 级吉凶运势 + 随机积分 + 连签加成，显示累计积分 |
 | `/我的信息` | 积分 / 连签 / 总签到 / 今日老婆 |
-| `/排行榜` | 积分 Top10（全局或分群可配） |
-| `/老婆`（今日老婆/每日老婆） | 每日一次，图 + 角色名/标签 |
-| `/换老婆` | 重抽，消耗积分，每日限次 |
+| `/排行榜` | 全局积分 Top10，未上榜时在下方单独显示本人名次 |
+| `/老婆`（今日老婆/每日老婆） | 每人每天全局一次，图 + 角色名/标签 |
+| `/换老婆` | 重抽，消耗积分，每人每天全局限次 |
+
+> 数据以用户为锚点：签到、积分、老婆与换老婆次数在私聊和各群聊之间**互通**，同一用户每天只能签到一次、抽老婆一次。
 
 老婆图源 `waifu_source`：`manshuo`（默认，调用漫朔今日老婆接口）/ `local`（本地图片库）。
 
@@ -75,8 +77,7 @@ WebUI 插件配置页可修改；关键项：
 | `waifu_source` | `manshuo` | 老婆图源 |
 | `local_wife_paths` | `[]` | 本地老婆图片文件或目录路径列表，`waifu_source=local` 时使用 |
 | `local_wife_name_from_filename` | `true` | 是否使用本地图片文件名（不含扩展名）作为人物名称 |
-| `change_wife_cost` / `change_wife_limit` | `30` / `2` | 换老婆 |
-| `leaderboard_scope` | `global` | 榜单范围 |
+| `change_wife_cost` / `change_wife_limit` | `30` / `2` | 换老婆（每人每天全局） |
 | `music_agg_base_url` | `https://music.txqq.pro/` | 点歌聚合接口 |
 | `music_send_card` | `true` | QQ OneBot 上尝试普通卡片和签名卡片 |
 | `music_card_api_key` | 空 | 签名 Ark 卡片服务的 API Key |
@@ -89,6 +90,8 @@ WebUI 插件配置页可修改；关键项：
 ## 🗂 数据存储
 
 `data/plugin_data/astrbot_plugin_allinone/allinone.db`（单 SQLite：用户积分、每日老婆、歌单、群配置、KV）。
+
+> 积分、老婆、歌单均以用户（`sender_id`）为锚点，私聊与各群互通。升级到本版本时，会自动执行一次性迁移，把历史上按群存储的积分与老婆数据合并到用户级（迁移标记存于 KV 表）。
 
 ## 📌 已知限制
 

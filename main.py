@@ -85,7 +85,7 @@ class AllInOnePlugin(Star):
 
     @filter.llm_tool(name="show_leaderboard")
     async def tool_leaderboard(self, event: AstrMessageEvent):
-        """查看积分排行榜前 10 名。"""
+        """查看全局积分排行榜前 10 名（未上榜时会附上本人名次）。"""
         return await self._send_tool_text(event, await self.checkin_wife.leaderboard(event))
 
     # ----- 每日老婆 -----

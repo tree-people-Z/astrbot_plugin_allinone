@@ -104,12 +104,6 @@
     "type": "int",
     "default": 2
   },
-  "leaderboard_scope": {
-    "description": "排行榜统计范围",
-    "type": "string",
-    "options": ["global", "group"],
-    "default": "global"
-  },
   "music_enable": {
     "description": "启用点歌模块",
     "type": "bool",

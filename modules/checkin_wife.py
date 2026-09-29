@@ -13,7 +13,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 
 from ..core.core import Core
-from ..core.utils import group_id_of, member_names, sender_id_of, sender_name_of
+from ..core.utils import member_names, sender_id_of, sender_name_of
 
 DEFAULT_TIERS = [
     {"name": "大凶", "weight": 3, "min_points": 1, "max_points": 5},
@@ -77,20 +77,14 @@ class CheckinWifeModule:
                 return tier
         return tiers[-1]
 
-    def scope_id(self, event: AstrMessageEvent) -> str:
-        if str(self.core.cfg.get("leaderboard_scope", "global")).lower() == "group":
-            return group_id_of(event)
-        return ""
-
     # ---------- 签到 ----------
 
     async def checkin(self, event: AstrMessageEvent):
         sender_id = sender_id_of(event)
-        scope_id = self.scope_id(event)
         name = sender_name_of(event)
         today = self.core.today()
 
-        row = await self.db.get_user(sender_id, scope_id)
+        row = await self.db.get_user(sender_id, "")
         if row and row[2] == today:
             return (
                 f"📅 {name}，今天已经签到过啦~\n当前累计积分：{row[0]}\n连续签到：{row[1]} 天\n明天再来吧！"
@@ -113,7 +107,7 @@ class CheckinWifeModule:
         bonus = min(streak * per_day, cap) if per_day > 0 else 0
         gain = base + bonus
 
-        await self.db.apply_checkin(sender_id, scope_id, name, gain, streak, today)
+        await self.db.apply_checkin(sender_id, "", name, gain, streak, today)
         total = (row[0] if row else 0) + gain
 
         mood = "🎉" if "吉" in tier["name"] else "😢"
@@ -128,10 +122,8 @@ class CheckinWifeModule:
 
     async def my_info(self, event: AstrMessageEvent):
         sender_id = sender_id_of(event)
-        scope_id = self.scope_id(event)
-        group_id = group_id_of(event)
-        user = await self.db.get_user(sender_id, scope_id)
-        wife = await self.db.get_wife(sender_id, group_id, self.core.today())
+        user = await self.db.get_user(sender_id, "")
+        wife = await self.db.get_wife(sender_id, "", self.core.today())
 
         lines = [
             f"👤 {sender_name_of(event)} 的信息",
@@ -143,16 +135,22 @@ class CheckinWifeModule:
         return "\n".join(lines)
 
     async def leaderboard(self, event: AstrMessageEvent):
-        rows = await self.db.leaderboard(self.scope_id(event), 10)
+        rows = await self.db.leaderboard("", 10)
         if not rows:
             return "暂无排行数据，快去发送 /签到 吧~"
-        scope_label = "本群" if self.scope_id(event) else "全局"
         missing = [sid for sid, name, _ in rows if not name]
         names = await member_names(event, missing)
-        lines = [f"🏆 {scope_label}积分排行榜 Top10"]
+        lines = ["🏆 全局积分排行榜 Top10"]
         for index, (sender_id, sender_name, points) in enumerate(rows):
             prefix = MEDALS[index] if index < 3 else f"{index + 1}."
             lines.append(f"{prefix} {sender_name or names.get(sender_id) or sender_id} — {points}")
+
+        me = sender_id_of(event)
+        if all(str(sender_id) != str(me) for sender_id, _, _ in rows):
+            rank = await self.db.user_rank("", me)
+            if rank:
+                lines.append("──────────")
+                lines.append(f"第 {rank[0]} 名 {sender_name_of(event)} — {rank[1]}")
         return "\n".join(lines)
 
     # ---------- 老婆图源 ----------
@@ -248,9 +246,8 @@ class CheckinWifeModule:
 
     async def wife(self, event: AstrMessageEvent):
         sender_id = sender_id_of(event)
-        group_id = group_id_of(event)
         today = self.core.today()
-        existing = await self.db.get_wife(sender_id, group_id, today)
+        existing = await self.db.get_wife(sender_id, "", today)
         if existing:
             chain = []
             if existing[1]:
@@ -272,7 +269,7 @@ class CheckinWifeModule:
             return None
         await self.db.set_wife(
             sender_id,
-            group_id,
+            "",
             today,
             result.get("name", ""),
             result.get("image", ""),
@@ -284,14 +281,12 @@ class CheckinWifeModule:
 
     async def change_wife(self, event: AstrMessageEvent):
         sender_id = sender_id_of(event)
-        scope_id = self.scope_id(event)
-        group_id = group_id_of(event)
         name = sender_name_of(event)
         today = self.core.today()
         cost = self.core.cfg.int("change_wife_cost", 30)
         limit = self.core.cfg.int("change_wife_limit", 2)
 
-        existing = await self.db.get_wife(sender_id, group_id, today)
+        existing = await self.db.get_wife(sender_id, "", today)
         if not existing:
             return f"{name}，你还没有今天的老婆，先发送 /老婆 抽一个吧~"
 
@@ -299,7 +294,7 @@ class CheckinWifeModule:
         if limit > 0 and change_count >= limit:
             return f"{name}，今日换老婆次数已用完（上限 {limit} 次），明天再来吧~"
 
-        user = await self.db.get_user(sender_id, scope_id)
+        user = await self.db.get_user(sender_id, "")
         points = user[0] if user else 0
         if cost > 0 and points < cost:
             return f"{name}，积分不足，换老婆需要 {cost} 积分，你当前只有 {points} 积分。"
@@ -309,11 +304,11 @@ class CheckinWifeModule:
             return f"{name}，老婆召唤失败，请稍后再试~"
 
         if cost > 0:
-            await self.db.add_points(sender_id, scope_id, -cost, name)
+            await self.db.add_points(sender_id, "", -cost, name)
         new_count = change_count + 1
         await self.db.set_wife(
             sender_id,
-            group_id,
+            "",
             today,
             result.get("name", ""),
             result.get("image", ""),
