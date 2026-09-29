@@ -11,7 +11,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 
 from ..core.core import Core
-from ..core.utils import sender_id_of, truncate
+from ..core.utils import sender_id_of, sender_name_of, truncate
 
 SIGN = "[allinone:music]"
 ARK_CARD_URL = "https://apii.xianyuw.cn/api/v1/qq-musicArk"
@@ -110,7 +110,9 @@ class MusicModule:
         )
 
         lines = [f"{position}. 《{song.name}》- {song.artists}" for position, song in enumerate(songs, 1)]
-        lines.append(f"请回复序号选择歌曲（1-{len(songs)}），回复 取消 退出：")
+        lines.append(
+            f"{sender_name_of(event)}，请回复序号选择歌曲（1-{len(songs)}），回复 取消 退出："
+        )
         await event.send(event.plain_result("\n".join(lines)))
 
         selected: Song | None = None
@@ -260,7 +262,7 @@ class MusicModule:
             except Exception as exc:
                 logger.warning(f"{SIGN} 歌曲链接发送失败: {exc}")
         if not sent:
-            return f"歌曲《{song.name}》发送失败，暂无可用链接。"
+            return f"{sender_name_of(event)}，歌曲《{song.name}》发送失败，暂无可用链接。"
         if self.core.cfg.bool("music_enable_lyrics", True):
             lyric = await self.lyrics_of(song)
             if lyric:
@@ -268,12 +270,13 @@ class MusicModule:
                     await event.send(event.plain_result(f"📃 歌词预览：\n{truncate(lyric, 600)}"))
                 except Exception as exc:
                     logger.warning(f"{SIGN} 歌词发送失败: {exc}")
-        return f"已发送歌曲《{song.name}》- {song.artists}"
+        return f"{sender_name_of(event)}，已发送歌曲《{song.name}》- {song.artists}"
 
-    def format_songs(self, songs: list[Song]) -> str:
+    def format_songs(self, songs: list[Song], sender_name: str = "") -> str:
+        owner = f"{sender_name}，" if sender_name else ""
         if not songs:
-            return "没有找到相关歌曲。"
-        lines = ["找到以下歌曲："]
+            return f"{owner}没有找到相关歌曲。"
+        lines = [f"{owner}找到以下歌曲："]
         for position, song in enumerate(songs, 1):
             lines.append(f"{position}. 《{song.name}》- {song.artists}")
         lines.append("回复序号可选择播放，例如：点歌 稻香 2")
@@ -285,13 +288,13 @@ class MusicModule:
         await self.core.db.playlist_add(
             sender_id_of(event), song.song_id, "qq", song.name, song.artists
         )
-        return f"已将《{song.name}》加入歌单"
+        return f"{sender_name_of(event)}，已将《{song.name}》加入歌单"
 
     async def show_playlist(self, event: AstrMessageEvent) -> str:
         rows = await self.core.db.playlist_list(sender_id_of(event), 20)
         if not rows:
-            return "歌单还是空的，发送 歌单添加 <歌名> 收藏歌曲吧~"
-        lines = ["🎵 我的歌单："]
+            return f"{sender_name_of(event)}，歌单还是空的，发送 歌单添加 <歌名> 收藏歌曲吧~"
+        lines = [f"🎵 {sender_name_of(event)} 的歌单："]
         for position, row in enumerate(rows, 1):
             lines.append(f"{position}. {row[2]} - {row[3]}")
         lines.append("发送 播放歌单 <序号> 播放，删除歌单 <序号> 移除")
@@ -300,9 +303,9 @@ class MusicModule:
     async def play_from_playlist(self, event: AstrMessageEvent, index: int) -> str:
         rows = await self.core.db.playlist_list(sender_id_of(event), 20)
         if not rows or index < 1 or index > len(rows):
-            return "歌单里没有这首歌，发送 我的歌单 查看列表。"
+            return f"{sender_name_of(event)}，歌单里没有这首歌，发送 我的歌单 查看列表。"
         row = rows[index - 1]
         songs = await self.search(row[2], 1)
         if not songs:
-            return "这首歌暂时搜索不到，试试其他歌曲。"
+            return f"{sender_name_of(event)}，这首歌暂时搜索不到，试试其他歌曲。"
         return await self.send_song(event, songs[0])

@@ -16,6 +16,7 @@ from ..core.utils import (
     get_ats,
     group_id_of,
     last_reply_id,
+    member_names,
     sender_id_of,
     sender_name_of,
 )
@@ -102,16 +103,18 @@ class AdminModule:
             return blocked
         group_id = group_id_of(event)
         targets = ats or get_ats(event)
+        names = await member_names(event, targets)
         results = []
         for target_id in targets:
+            name = names.get(target_id, target_id)
             try:
                 await event.bot.set_group_ban(
                     group_id=int(group_id), user_id=int(target_id), duration=int(duration)
                 )
-                results.append(f"用户[{target_id}]被禁言 {duration} 秒")
+                results.append(f"用户[{name}]被禁言 {duration} 秒")
             except Exception as exc:
                 logger.warning(f"{SIGN} 禁言失败 {target_id}: {exc}")
-                results.append(f"用户[{target_id}]禁言失败")
+                results.append(f"用户[{name}]禁言失败")
         return "\n".join(results) if results else "未指定要禁言的用户"
 
     async def unban(self, event: AstrMessageEvent, ats: list[str] | None = None):
@@ -119,16 +122,18 @@ class AdminModule:
         if blocked:
             return blocked
         targets = ats or get_ats(event)
+        names = await member_names(event, targets)
         results = []
         for target_id in targets:
+            name = names.get(target_id, target_id)
             try:
                 await event.bot.set_group_ban(
                     group_id=int(group_id_of(event)), user_id=int(target_id), duration=0
                 )
-                results.append(f"已解除 [{target_id}] 的禁言")
+                results.append(f"已解除 [{name}] 的禁言")
             except Exception as exc:
                 logger.warning(f"{SIGN} 解禁失败 {target_id}: {exc}")
-                results.append(f"解禁 [{target_id}] 失败")
+                results.append(f"解禁 [{name}] 失败")
         return "\n".join(results) if results else "未指定要解禁的用户"
 
     async def whole_ban(self, event: AstrMessageEvent, enable: bool):
@@ -149,8 +154,10 @@ class AdminModule:
         if blocked:
             return blocked
         targets = ats or get_ats(event)
+        names = await member_names(event, targets)
         results = []
         for target_id in targets:
+            name = names.get(target_id, target_id)
             try:
                 await event.bot.set_group_kick(
                     group_id=int(group_id_of(event)),
@@ -158,10 +165,10 @@ class AdminModule:
                     reject_add_request=block,
                 )
                 suffix = "并拉黑" if block else ""
-                results.append(f"已将 [{target_id}] 踢出本群{suffix}")
+                results.append(f"已将 [{name}] 踢出本群{suffix}")
             except Exception as exc:
                 logger.warning(f"{SIGN} 踢出失败 {target_id}: {exc}")
-                results.append(f"踢出 [{target_id}] 失败")
+                results.append(f"踢出 [{name}] 失败")
         return "\n".join(results) if results else "未指定要踢出的用户"
 
     # ---------- 撤回 ----------
@@ -218,18 +225,20 @@ class AdminModule:
         if blocked:
             return blocked
         targets = targets or get_ats(event) or [sender_id_of(event)]
+        names = await member_names(event, targets)
         results = []
         for target_id in targets:
+            name = names.get(target_id, target_id)
             try:
                 await event.bot.set_group_card(
                     group_id=int(group_id_of(event)),
                     user_id=int(target_id),
                     card=card,
                 )
-                results.append(f"已将 [{target_id}] 的群昵称改为 {card}")
+                results.append(f"已将 [{name}] 的群昵称改为 {card}")
             except Exception as exc:
                 logger.warning(f"{SIGN} 改名失败 {target_id}: {exc}")
-                results.append(f"修改 [{target_id}] 群昵称失败")
+                results.append(f"修改 [{name}] 群昵称失败")
         return "\n".join(results) if results else "未指定要修改的用户"
 
     async def send_notice(self, event: AstrMessageEvent, content: str):
@@ -439,8 +448,10 @@ class AdminModule:
             return blocked
         if not ats:
             return "请 @ 要设置头衔的用户"
+        names = await member_names(event, ats)
         results = []
         for target_id in ats:
+            name = names.get(target_id, target_id)
             try:
                 await event.bot.set_group_special_title(
                     group_id=int(group_id_of(event)),
@@ -448,10 +459,10 @@ class AdminModule:
                     special_title=title,
                     duration=-1,
                 )
-                results.append(f"已设置 [{target_id}] 的头衔为 {title}")
+                results.append(f"已设置 [{name}] 的头衔为 {title}")
             except Exception as exc:
                 logger.warning(f"{SIGN} 设置头衔失败 {target_id}: {exc}")
-                results.append(f"设置 [{target_id}] 头衔失败")
+                results.append(f"设置 [{name}] 头衔失败")
         return "\n".join(results)
 
     async def set_admin_perm(self, event: AstrMessageEvent, enable: bool, ats: list[str]):
@@ -462,16 +473,18 @@ class AdminModule:
             return blocked
         if not ats:
             return "请 @ 目标用户"
+        names = await member_names(event, ats)
         results = []
         for target_id in ats:
+            name = names.get(target_id, target_id)
             try:
                 await event.bot.set_group_admin(
                     group_id=int(group_id_of(event)), user_id=int(target_id), enable=enable
                 )
-                results.append(f"{'已设置' if enable else '已取消'} [{target_id}] 的管理员")
+                results.append(f"{'已设置' if enable else '已取消'} [{name}] 的管理员")
             except Exception as exc:
                 logger.warning(f"{SIGN} 设置管理员失败 {target_id}: {exc}")
-                results.append(f"设置 [{target_id}] 管理员失败")
+                results.append(f"设置 [{name}] 管理员失败")
         return "\n".join(results)
 
     async def set_group_name(self, event: AstrMessageEvent, name: str):

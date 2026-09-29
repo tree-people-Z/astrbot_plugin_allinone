@@ -20,6 +20,7 @@ from .core.utils import (
     is_aiocqhttp,
     resolve_targets,
     sender_id_of,
+    sender_name_of,
     truncate,
 )
 from .modules.checkin_wife import CheckinWifeModule
@@ -96,7 +97,7 @@ class AllInOnePlugin(Star):
             return "每日老婆功能未启用。"
         chain = await self.checkin_wife.wife(event)
         if not chain:
-            return "老婆召唤失败，请稍后再试。"
+            return f"{sender_name_of(event)}，老婆召唤失败，请稍后再试。"
         await event.send(event.chain_result(chain))
         return "已为用户抽取并发送今日老婆。"
 
@@ -121,7 +122,9 @@ class AllInOnePlugin(Star):
             keyword(string): 歌名或歌手等关键词
         """
         songs = await self.music.search(truncate(keyword, 60))
-        return await self._send_tool_text(event, self.music.format_songs(songs))
+        return await self._send_tool_text(
+            event, self.music.format_songs(songs, sender_name_of(event))
+        )
 
     @filter.llm_tool(name="play_music")
     async def tool_play_music(self, event: AstrMessageEvent, keyword: str, index: int = 1):
@@ -135,7 +138,7 @@ class AllInOnePlugin(Star):
             return "点歌功能未启用。"
         songs = await self.music.search(truncate(keyword, 60))
         if not songs:
-            return f"没有找到《{keyword}》相关歌曲。"
+            return f"{sender_name_of(event)}，没有找到《{keyword}》相关歌曲。"
         chosen = songs[(max(1, int(index)) - 1) % len(songs)]
         return await self.music.send_song(event, chosen)
 
@@ -148,7 +151,9 @@ class AllInOnePlugin(Star):
         """
         songs = await self.music.search(truncate(keyword, 60), 1)
         if not songs:
-            return await self._send_tool_text(event, f"没有找到《{keyword}》。")
+            return await self._send_tool_text(
+                event, f"{sender_name_of(event)}，没有找到《{keyword}》。"
+            )
         lyric = await self.music.lyrics_of(songs[0])
         text = f"📃 {songs[0].name} 歌词：\n{truncate(lyric, 1200)}" if lyric else "未找到歌词。"
         return await self._send_tool_text(event, text)
@@ -162,7 +167,9 @@ class AllInOnePlugin(Star):
         """
         songs = await self.music.search(truncate(keyword, 60), 1)
         if not songs:
-            return await self._send_tool_text(event, f"没有找到《{keyword}》。")
+            return await self._send_tool_text(
+                event, f"{sender_name_of(event)}，没有找到《{keyword}》。"
+            )
         return await self._send_tool_text(
             event, await self.music.save_to_playlist(event, songs[0])
         )
@@ -188,9 +195,10 @@ class AllInOnePlugin(Star):
         Args:
             index(number): 歌单序号，从 1 开始
         """
-        name = await self.core.db.playlist_remove(sender_id_of(event), int(index))
+        removed = await self.core.db.playlist_remove(sender_id_of(event), int(index))
+        owner = f"{sender_name_of(event)}，"
         return await self._send_tool_text(
-            event, f"已移除《{name}》" if name else "没有这条记录。"
+            event, f"{owner}已移除《{removed}》" if removed else f"{owner}没有这条记录。"
         )
 
     # ----- 群管（QQ） -----
@@ -504,7 +512,7 @@ class AllInOnePlugin(Star):
         if chain:
             yield event.chain_result(chain)
         else:
-            yield event.plain_result("老婆召唤失败，请稍后再试~")
+            yield event.plain_result(f"{sender_name_of(event)}，老婆召唤失败，请稍后再试~")
         event.stop_event()
 
     @filter.command("换老婆", alias={"换个老婆"})
@@ -527,12 +535,14 @@ class AllInOnePlugin(Star):
             return
         keyword, index = self.music.parse_request(event.message_str)
         if not keyword:
-            yield event.plain_result("用法：点歌 <歌名>（可结尾加序号，如：点歌 稻香 2）")
+            yield event.plain_result(
+                f"{sender_name_of(event)}，用法：点歌 <歌名>（可结尾加序号，如：点歌 稻香 2）"
+            )
             event.stop_event()
             return
         songs = await self.music.search(keyword)
         if not songs:
-            yield event.plain_result(f"没有找到《{keyword}》相关歌曲。")
+            yield event.plain_result(f"{sender_name_of(event)}，没有找到《{keyword}》相关歌曲。")
             event.stop_event()
             return
         if index is not None and 1 <= index <= len(songs):
@@ -557,7 +567,9 @@ class AllInOnePlugin(Star):
             return
         lyric = await self.music.lyrics_of(songs[0])
         yield event.plain_result(
-            f"📃 {songs[0].name} 歌词：\n{truncate(lyric, 1200)}" if lyric else "未找到歌词。"
+            f"{sender_name_of(event)}，📃 {songs[0].name} 歌词：\n{truncate(lyric, 1200)}"
+            if lyric
+            else f"{sender_name_of(event)}，未找到歌词。"
         )
         event.stop_event()
 

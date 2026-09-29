@@ -13,7 +13,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 
 from ..core.core import Core
-from ..core.utils import group_id_of, sender_id_of, sender_name_of
+from ..core.utils import group_id_of, member_names, sender_id_of, sender_name_of
 
 DEFAULT_TIERS = [
     {"name": "大凶", "weight": 3, "min_points": 1, "max_points": 5},
@@ -93,7 +93,7 @@ class CheckinWifeModule:
         row = await self.db.get_user(sender_id, scope_id)
         if row and row[2] == today:
             return (
-                f"📅 今天已经签到过啦~\n当前累计积分：{row[0]}\n连续签到：{row[1]} 天\n明天再来吧！"
+                f"📅 {name}，今天已经签到过啦~\n当前累计积分：{row[0]}\n连续签到：{row[1]} 天\n明天再来吧！"
             )
 
         streak = 1
@@ -117,7 +117,7 @@ class CheckinWifeModule:
         total = (row[0] if row else 0) + gain
 
         mood = "🎉" if "吉" in tier["name"] else "😢"
-        lines = [f"📅 今日运势：{tier['name']} {mood}"]
+        lines = [f"📅 {name} 今日运势：{tier['name']} {mood}"]
         if bonus > 0:
             lines.append(f"获得积分：{base}（连续签到 {streak} 天，+{bonus}）")
         else:
@@ -147,10 +147,12 @@ class CheckinWifeModule:
         if not rows:
             return "暂无排行数据，快去发送 /签到 吧~"
         scope_label = "本群" if self.scope_id(event) else "全局"
+        missing = [sid for sid, name, _ in rows if not name]
+        names = await member_names(event, missing)
         lines = [f"🏆 {scope_label}积分排行榜 Top10"]
         for index, (sender_id, sender_name, points) in enumerate(rows):
             prefix = MEDALS[index] if index < 3 else f"{index + 1}."
-            lines.append(f"{prefix} {sender_name or sender_id} — {points}")
+            lines.append(f"{prefix} {sender_name or names.get(sender_id) or sender_id} — {points}")
         return "\n".join(lines)
 
     # ---------- 老婆图源 ----------
@@ -219,12 +221,13 @@ class CheckinWifeModule:
         cost = self.core.cfg.int("change_wife_cost", 30)
         limit = self.core.cfg.int("change_wife_limit", 2)
         name = str(result.get("name") or "").strip()
+        owner = f"{sender_name}，" if sender_name else ""
         if sender_name and change_count == 0:
-            lines = [f"🎴 今天，你的老婆是{name}".rstrip()]
+            lines = [f"🎴 {owner}今天，你的老婆是{name}".rstrip()]
         elif prefix.startswith("🔄"):
-            lines = [f"{prefix}：今天，你的老婆是{name}".rstrip()]
+            lines = [f"{prefix}：{owner}今天，你的老婆是{name}".rstrip()]
         else:
-            lines = [f"今天，你的老婆是{name}".rstrip()]
+            lines = [f"{owner}今天，你的老婆是{name}".rstrip()]
         if change_count is not None:
             if limit > 0:
                 lines.append(f"今日已换 {change_count}/{limit} 次")
@@ -283,29 +286,30 @@ class CheckinWifeModule:
         sender_id = sender_id_of(event)
         scope_id = self.scope_id(event)
         group_id = group_id_of(event)
+        name = sender_name_of(event)
         today = self.core.today()
         cost = self.core.cfg.int("change_wife_cost", 30)
         limit = self.core.cfg.int("change_wife_limit", 2)
 
         existing = await self.db.get_wife(sender_id, group_id, today)
         if not existing:
-            return "你还没有今天的老婆，先发送 /老婆 抽一个吧~"
+            return f"{name}，你还没有今天的老婆，先发送 /老婆 抽一个吧~"
 
         change_count = int(existing[4])
         if limit > 0 and change_count >= limit:
-            return f"今日换老婆次数已用完（上限 {limit} 次），明天再来吧~"
+            return f"{name}，今日换老婆次数已用完（上限 {limit} 次），明天再来吧~"
 
         user = await self.db.get_user(sender_id, scope_id)
         points = user[0] if user else 0
         if cost > 0 and points < cost:
-            return f"积分不足，换老婆需要 {cost} 积分，你当前只有 {points} 积分。"
+            return f"{name}，积分不足，换老婆需要 {cost} 积分，你当前只有 {points} 积分。"
 
         result = await self.draw_wife()
         if not result:
-            return "老婆召唤失败，请稍后再试~"
+            return f"{name}，老婆召唤失败，请稍后再试~"
 
         if cost > 0:
-            await self.db.add_points(sender_id, scope_id, -cost, sender_name_of(event))
+            await self.db.add_points(sender_id, scope_id, -cost, name)
         new_count = change_count + 1
         await self.db.set_wife(
             sender_id,
@@ -318,4 +322,4 @@ class CheckinWifeModule:
             new_count,
         )
         prefix = f"🔄 换老婆成功（消耗 {cost} 积分）" if cost > 0 else "🔄 换老婆成功"
-        return self.render_wife(result, prefix=prefix, change_count=new_count)
+        return self.render_wife(result, sender_name=name, prefix=prefix, change_count=new_count)

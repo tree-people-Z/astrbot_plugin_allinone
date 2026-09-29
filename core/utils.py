@@ -75,6 +75,25 @@ def get_ats(event: AstrMessageEvent) -> list[str]:
     return list(ats)
 
 
+async def member_names(event: AstrMessageEvent, user_ids: list[str]) -> dict[str, str]:
+    """把 QQ 号映射为群名片/昵称，取不到则回退为原 QQ 号。"""
+    mapping = {str(uid): str(uid) for uid in user_ids}
+    group_id = group_id_of(event)
+    if not group_id:
+        return mapping
+    try:
+        members = await event.bot.get_group_member_list(group_id=int(group_id))
+    except Exception:
+        return mapping
+    for member in members:
+        uid = str(member.get("user_id", ""))
+        if uid in mapping:
+            name = str(member.get("card") or member.get("nickname") or "").strip()
+            if name:
+                mapping[uid] = name
+    return mapping
+
+
 def truncate(text: str, limit: int = 80) -> str:
     text = " ".join((text or "").split())
     return text[:limit] + "…" if len(text) > limit else text
