@@ -1,10 +1,10 @@
 """astrbot_plugin_allinone 主入口。
 
-以自然语言（LLM 函数调用）为主驱动：LLM 依据对话意图调度签到/老婆/点歌/戳一戳/群管
+以自然语言（LLM 函数调用）为主驱动：LLM 依据对话意图调度签到/老婆/点歌/群管
 等模块能力；传统指令默认关闭，可在配置中开启作为兜底。
 
 灵感来源：@cvEvthBot 的签到与每日老婆玩法，以及
-astrbot_plugin_music / astrbot_plugin_pokepro / astrbot_plugin_qqadmin 的交互设计。
+astrbot_plugin_music / astrbot_plugin_qqadmin 的交互设计。
 """
 
 from __future__ import annotations
@@ -25,7 +25,6 @@ from .core.utils import (
 from .modules.checkin_wife import CheckinWifeModule
 from .modules.group_admin import AdminModule
 from .modules.music import MusicModule
-from .modules.poke import PokeFactory
 
 SIGN = "[allinone]"
 
@@ -36,7 +35,6 @@ class AllInOnePlugin(Star):
         self.core = Core(context=context, config=Config(config if config is not None else {}))
         self.checkin_wife = CheckinWifeModule(self.core)
         self.music = MusicModule(self.core)
-        self.poke = PokeFactory(self.core)
         self.admin = AdminModule(self.core)
 
     async def initialize(self):
@@ -194,27 +192,6 @@ class AllInOnePlugin(Star):
         return await self._send_tool_text(
             event, f"已移除《{name}》" if name else "没有这条记录。"
         )
-
-    # ----- 戳一戳（QQ） -----
-
-    @filter.llm_tool(name="poke_user")
-    async def tool_poke_user(self, event: AstrMessageEvent, target: str = "", times: int = 1):
-        """戳一戳指定用户（QQ）。
-
-        Args:
-            target(string): 目标群成员昵称或QQ号，留空默认戳发送者
-            times(number): 戳的次数，默认 1
-        """
-        if not self.module_enabled("poke_enable"):
-            return "戳一戳功能未启用。"
-        if not self.is_qq(event):
-            return "戳一戳仅支持 QQ 平台。"
-        targets = await self._targets(event, target)
-        if not targets:
-            return "没有找到要戳的目标。"
-        bounded = max(1, min(self.core.cfg.int("poke_max_times", 5), int(times) or 1))
-        await self.poke.send_poke(event, targets, bounded)
-        return await self._send_tool_text(event, f"已戳 {('、'.join(targets))} 共 {bounded} 次")
 
     # ----- 群管（QQ） -----
 
@@ -421,8 +398,6 @@ class AllInOnePlugin(Star):
             lines.append("- 每日老婆：如“抽老婆”“换一个老婆”")
         if self.module_enabled("music_enable"):
             lines.append("- 点歌：如“点首稻香”“搜一下周杰伦的歌”“把稻香加入歌单”")
-        if self.module_enabled("poke_enable") and self.is_qq(event):
-            lines.append("- 戳一戳：如“戳一下张三”")
         if self.module_enabled("admin_enable") and self.is_qq(event):
             lines += [
                 "- 群管理：如“把张三禁言10分钟”“踢了李四”“全员禁言”“撤回他最近3条消息”",
@@ -433,32 +408,16 @@ class AllInOnePlugin(Star):
         return "\n".join(lines)
 
     # ============================================================
-    #  事件监听（被戳反应 / 违禁词 / 刷屏 / 宵禁）
+    #  事件监听（违禁词 / 刷屏 / 宵禁）
     # ============================================================
 
     @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def on_qq_event(self, event: AstrMessageEvent):
-        """QQ 事件监听：戳一戳响应 + 违禁词/刷屏/宵禁。
+        """QQ 事件监听：违禁词/刷屏/宵禁。
 
         普通自然语言对话和主动回复统一交给 AstrBot 默认 Agent 管线。
         """
-        if self.module_enabled("poke_enable"):
-            info = self.poke.parse(event)
-            if info:
-                try:
-                    reply = await self.poke.handle_poked(event, info)
-                    if hasattr(reply, "__aiter__"):
-                        async for item in reply:
-                            if item is not None:
-                                yield item
-                    elif reply is not None:
-                        yield reply
-                except Exception as exc:
-                    logger.exception("[allinone:poke] 处理戳一戳事件失败: %s", exc)
-                event.stop_event()
-                return
-
         if getattr(event, "is_at_or_wake_command", False):
             return
 
@@ -487,8 +446,6 @@ class AllInOnePlugin(Star):
             capabilities.append(
                 "点歌(search_music, play_music, query_lyrics, add_to_playlist, show_my_playlist)"
             )
-        if self.module_enabled("poke_enable") and self.is_qq(event):
-            capabilities.append("戳一戳(poke_user)")
         if self.module_enabled("admin_enable") and self.is_qq(event):
             capabilities.append(
                 "群管(ban_group_user, kick_group_user, recall_group_messages, send_group_notice, "
@@ -619,36 +576,3 @@ class AllInOnePlugin(Star):
             return
         yield event.plain_result(self.admin.help_text())
         event.stop_event()
-
-    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
-    @filter.command("戳")
-    async def cmd_poke(self, event: AstrMessageEvent):
-        """戳 @某人 [次数] 或 戳全体成员"""
-        if not self.commands_on() or not self.module_enabled("poke_enable"):
-            return
-        text = (event.message_str or "").strip()
-        self_id = str(event.get_self_id())
-        if "全体成员" in text and event.is_admin():
-            targets = [t for t in await self.member_ids(event) if t != self_id]
-        else:
-            targets = await self._targets(event, "")
-        if targets:
-            await self.poke.send_poke(event, targets, self.poke_times(text))
-        event.stop_event()
-
-    async def member_ids(self, event: AstrMessageEvent) -> list[str]:
-        try:
-            members = await event.bot.get_group_member_list(group_id=int(group_id_of(event)))
-            return [str(member.get("user_id", "")) for member in members]
-        except Exception as exc:
-            logger.warning(f"{SIGN} 获取群成员失败: {exc}")
-            return []
-
-    def poke_times(self, message_str: str) -> int:
-        tokens = (message_str or "").split()
-        if tokens and tokens[-1].isdigit():
-            value = int(tokens[-1])
-        else:
-            value = 1
-        max_times = self.core.cfg.int("poke_max_times", 5)
-        return max(1, min(max_times, value))

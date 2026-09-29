@@ -1,9 +1,9 @@
 # astrbot_plugin_allinone 聚合助手
 
-一站式 AstrBot 插件：**每日签到 + 每日老婆 + QQ点歌 + 戳一戳 + QQ群管**，深度融合 LLM 函数调用。
+一站式 AstrBot 插件：**每日签到 + 每日老婆 + QQ点歌 + QQ群管**，深度融合 LLM 函数调用。
 
 - 来源灵感：Telegram 机器人 [@cvEvthBot](https://t.me/cvEvthBot) 的签到/每日老婆玩法，以及
-  [Zhalslar](https://github.com/Zhalslar) 的 `astrbot_plugin_music` / `astrbot_plugin_pokepro` / `astrbot_plugin_qqadmin` 三款插件的交互设计。
+  [Zhalslar](https://github.com/Zhalslar) 的 `astrbot_plugin_music` / `astrbot_plugin_qqadmin` 两款插件的交互设计。
 - 许可证：[GPL-3.0](./LICENSE)。
 
 ## ✨ 功能
@@ -23,18 +23,16 @@
 
 本插件**以自然语言为主、指令为兜底**（指令默认关闭）：
 
-- **统一使用 AstrBot 默认 Agent 管线**：默认 LLM 负责普通对话、主动回复和工具调用；本插件通过 `@filter.llm_tool` 提供签到、老婆、点歌、戳一戳、群管等能力。主动回复请在 AstrBot 的 `provider_ltm_settings.active_reply` 中配置。
+- **统一使用 AstrBot 默认 Agent 管线**：默认 LLM 负责普通对话、主动回复和工具调用；本插件通过 `@filter.llm_tool` 提供签到、老婆、点歌、群管等能力。主动回复请在 AstrBot 的 `provider_ltm_settings.active_reply` 中配置。
 
 ## 🧩 工具架构（方便加功能）
 
 ```
 消息 ──→ AstrBot 默认 Agent 管线
-          ├─ poke 事件 → poke 模块
           ├─ 违禁词/刷屏/宵禁 → admin 模块
           └─ LLM 工具调用 → modules 层
                               ├→ checkin_wife（签到/老婆/积分）
                               ├→ music（点歌/歌词/歌单）
-                              ├→ poke（戳人）
                               └→ admin（群管）
 ```
 
@@ -49,11 +47,6 @@
 
 > 音源为 QQ 音乐（聚合接口 `https://music.txqq.pro/`，可在配置中替换）。配置 `music_card_api_key` 时，QQ OneBot 优先发送签名 Ark 卡片，避免部分 QQ 客户端对普通卡片显示“发送者版本过低”；没有 Key 或签名服务失败时再尝试普通卡片，之后按配置回退语音和文本链接。
 
-### 戳一戳（仅 QQ)
-- 被戳按权重随机触发：反戳 / QQ表情 / 表情包 / LLM回复 / 禁言 / 触发命令
-- `戳 @某人 [次数]`、`戳我`（回复 `戳` + @）、命中关键词自动回戳
-- 冷却与概率可配
-
 ### QQ群管（仅 QQ）
 - 禁言/解禁/全禁、踢人/群拉黑、撤回、改名、群公告、群友信息
 - 违禁词（自定义 + 内置）、刷屏检测、宵禁
@@ -65,7 +58,7 @@
 
 - 注册函数工具（可在 WebUI「函数工具」中启用/停用）：
   `checkin`、`query_my_info`、`show_leaderboard`、`draw_daily_wife`、`change_daily_wife`、
-  `search_music`、`play_music`、`poke_user`、`ban_group_user`、`kick_group_user`、
+  `search_music`、`play_music`、`ban_group_user`、`kick_group_user`、
   `recall_group_messages`、`rename_group`、`send_group_notice`
 - 每轮对话注入一小段能力提示（动态上下文，不污染 system prompt 缓存），让模型明确可用能力
 - 签到、资料、排行榜、歌单、歌词、群管结果及媒体内容由插件直接发送完整消息，只向模型返回发送状态
@@ -88,7 +81,6 @@ WebUI 插件配置页可修改；关键项：
 | `music_send_card` | `true` | QQ OneBot 上尝试普通卡片和签名卡片 |
 | `music_card_api_key` | 空 | 签名 Ark 卡片服务的 API Key |
 | `music_record_link` | `false` | 卡片失败后尝试语音发送 |
-| `poke_*` | 见配置 | 戳一戳权重/冷却/池 |
 | `admin_*` | 见配置 | 群管默认值/违禁词/刷屏/宵禁/进阶 |
 | `llm_capability_hint` | `true` | 是否向默认 LLM 注入本插件工具能力提示 |
 
@@ -100,9 +92,9 @@ WebUI 插件配置页可修改；关键项：
 
 ## 📌 已知限制
 
-- 戳一戳与群管仅支持 QQ(aiocqhttp)，其他平台不注册这些 handler。
+- 群管仅支持 QQ(aiocqhttp)，其他平台不注册这些 handler。
 - 违禁词内置表可在 `modules/group_admin.py:BUILTIN_BADWORDS` 中扩充。
-- 戳一戳/群管依赖 OneBot 协议端（napcat 已验证可用性较好的实现），其他协议端以实际为准。
+- 群管依赖 OneBot 协议端（napcat 已验证可用性较好的实现），其他协议端以实际为准。
 
 ## 📄 License
 
