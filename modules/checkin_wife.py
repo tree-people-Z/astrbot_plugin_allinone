@@ -187,17 +187,6 @@ class CheckinWifeModule:
                 )
         return files
 
-    def _configured_roots(self) -> list[Path]:
-        roots: list[Path] = []
-        for raw in self.core.cfg.list("local_wife_paths", []):
-            path = Path(str(raw)).expanduser()
-            if path.is_dir():
-                try:
-                    roots.append(path.resolve())
-                except OSError:
-                    continue
-        return roots
-
     @staticmethod
     def _strip_index(name: str) -> str:
         """去掉文件夹名的前导序号，如 3_安和昴 -> 安和昴 或 209-绪山真寻 -> 绪山真寻。"""
@@ -265,12 +254,6 @@ class CheckinWifeModule:
         return name
 
     async def _name_from_folder(self, event: AstrMessageEvent, image: Path) -> str:
-        try:
-            parent = image.parent.resolve()
-        except OSError:
-            parent = image.parent
-        if parent in self._configured_roots():
-            return ""
         raw = image.parent.name
         fallback = self._strip_index(raw)
         if self.core.cfg.bool("local_wife_name_llm", False):
