@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import random
+import re
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
@@ -185,25 +187,123 @@ class CheckinWifeModule:
                 )
         return files
 
-    async def _draw_local(self) -> dict | None:
+    def _configured_roots(self) -> list[Path]:
+        roots: list[Path] = []
+        for raw in self.core.cfg.list("local_wife_paths", []):
+            path = Path(str(raw)).expanduser()
+            if path.is_dir():
+                try:
+                    roots.append(path.resolve())
+                except OSError:
+                    continue
+        return roots
+
+    @staticmethod
+    def _strip_index(name: str) -> str:
+        """去掉文件夹名的前导序号，如 3_安和昴 -> 安和昴 或 209-绪山真寻 -> 绪山真寻。"""
+        return re.sub(r"^\s*\d+\s*[-_.、\s]*", "", str(name or "")).strip()
+
+    @staticmethod
+    def _clean_name(text: str) -> str:
+        text = (text or "").strip()
+        if not text:
+            return ""
+        line = text.splitlines()[0].strip()
+        line = line.strip("「」『』\"'“”‘’").strip()
+        line = re.sub(r"^(角色名|名称|人物名)[:：\s]*", "", line).strip()
+        return line[:20]
+
+    async def _llm_extract_name(self, event: AstrMessageEvent, raw: str) -> str:
+        raw = (raw or "").strip()
+        if not raw:
+            return ""
+        cache_key = f"wife_name:{raw}"
+        try:
+            cached = await self.db.kv_get(cache_key)
+        except Exception:
+            cached = None
+        if cached:
+            return str(cached)
+
+        context = getattr(self.core, "context", None)
+        if context is None:
+            return ""
+        umo = getattr(event, "unified_msg_origin", None)
+        provider = None
+        try:
+            get_async = getattr(context, "get_using_provider_async", None)
+            if callable(get_async):
+                provider = await get_async(umo=umo)
+            else:
+                provider = context.get_using_provider(umo=umo)
+        except Exception as exc:
+            logger.warning(f"{SIGN} 获取大模型服务失败: {exc}")
+            provider = None
+        if provider is None:
+            return ""
+
+        system_prompt = (
+            "你是命名助手。用户会给出一个本地图片文件夹名，请从中提取角色（人物）名称。"
+            "只输出角色名本身，不要序号、数字、作品名、括号、标点或任何解释。"
+        )
+        timeout = max(1, self.core.cfg.int("local_wife_name_llm_timeout", 20))
+        try:
+            resp = await asyncio.wait_for(
+                provider.text_chat(prompt=raw, system_prompt=system_prompt),
+                timeout=timeout,
+            )
+        except Exception as exc:
+            logger.warning(f"{SIGN} 大模型提取角色名失败: {exc}")
+            return ""
+        name = self._clean_name(getattr(resp, "completion_text", "") or "")
+        if not name:
+            return ""
+        try:
+            await self.db.kv_set(cache_key, name)
+        except Exception:
+            pass
+        return name
+
+    async def _name_from_folder(self, event: AstrMessageEvent, image: Path) -> str:
+        try:
+            parent = image.parent.resolve()
+        except OSError:
+            parent = image.parent
+        if parent in self._configured_roots():
+            return ""
+        raw = image.parent.name
+        fallback = self._strip_index(raw)
+        if self.core.cfg.bool("local_wife_name_llm", False):
+            extracted = await self._llm_extract_name(event, raw)
+            if extracted:
+                return extracted
+        return fallback
+
+    async def _draw_local(self, event: AstrMessageEvent) -> dict | None:
         files = self._local_wife_files()
         if not files:
             logger.warning(f"{SIGN} 本地图源没有找到可用图片")
             return None
         image = random.choice(files)
-        use_filename = self.core.cfg.bool("local_wife_name_from_filename", True)
+        source = self.core.cfg.str("local_wife_name_source", "folder").lower()
+        if source == "filename":
+            name = image.stem
+        elif source == "none":
+            name = ""
+        else:
+            name = await self._name_from_folder(event, image)
         return {
-            "name": image.stem if use_filename else "",
+            "name": name,
             "image": str(image.resolve()),
             "source": "本地图库",
             "local": True,
         }
 
-    async def draw_wife(self) -> dict | None:
+    async def draw_wife(self, event: AstrMessageEvent) -> dict | None:
         source = self.core.cfg.str("waifu_source", "manshuo").lower()
         try:
             if source == "local":
-                return await self._draw_local()
+                return await self._draw_local(event)
             return await self._draw_manshuo()
         except Exception as exc:
             logger.warning(f"{SIGN} 抽取老婆失败: {exc}")
@@ -264,7 +364,7 @@ class CheckinWifeModule:
                 ),
             )
             return chain
-        result = await self.draw_wife()
+        result = await self.draw_wife(event)
         if not result:
             return None
         await self.db.set_wife(
@@ -299,7 +399,7 @@ class CheckinWifeModule:
         if cost > 0 and points < cost:
             return f"{name}，积分不足，换老婆需要 {cost} 积分，你当前只有 {points} 积分。"
 
-        result = await self.draw_wife()
+        result = await self.draw_wife(event)
         if not result:
             return f"{name}，老婆召唤失败，请稍后再试~"
 

@@ -88,11 +88,24 @@
     "hint": "可填写图片文件或目录路径；目录会递归扫描 jpg/jpeg/png/gif/webp/bmp 文件。waifu_source=local 时使用。",
     "default": []
   },
-  "local_wife_name_from_filename": {
-    "description": "使用图片文件名作为人物名称",
+  "local_wife_name_source": {
+    "description": "本地老婆人物名称来源",
+    "type": "string",
+    "options": ["folder", "filename", "none"],
+    "hint": "folder：取图片所在角色文件夹名（自动去掉前导序号，如 3_安和昴 → 安和昴）；filename：用图片文件名；none：不显示名称。",
+    "default": "folder"
+  },
+  "local_wife_name_llm": {
+    "description": "用大模型从文件夹名提取角色名",
     "type": "bool",
-    "hint": "开启后使用图片文件名（不含扩展名）显示人物名称；关闭后不显示人物名称。",
-    "default": true
+    "hint": "仅名称来源为 folder 时生效；开启后交由默认大模型从文件夹名提取角色名，失败或超时则回退为去掉序号的结果，成功结果会缓存。",
+    "default": false
+  },
+  "local_wife_name_llm_timeout": {
+    "description": "大模型提取名称超时（秒）",
+    "type": "int",
+    "hint": "仅 local_wife_name_llm 开启时生效，超时回退为去掉序号的结果。",
+    "default": 20
   },
   "change_wife_cost": {
     "description": "换老婆消耗积分",
@@ -149,9 +162,10 @@
     "default": false
   },
   "music_enable_lyrics": {
-    "description": "启用歌词",
+    "description": "发送后附带歌词预览",
     "type": "bool",
-    "default": true
+    "hint": "默认关闭；仍可用 /查歌词 或自然语言单独查询歌词。",
+    "default": false
   },
   "music_nodejs_base_url": {
     "description": "网易云 NodeJS 接口地址（可选）",

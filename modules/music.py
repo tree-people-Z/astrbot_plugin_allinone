@@ -263,7 +263,7 @@ class MusicModule:
                 logger.warning(f"{SIGN} 歌曲链接发送失败: {exc}")
         if not sent:
             return f"{sender_name_of(event)}，歌曲《{song.name}》发送失败，暂无可用链接。"
-        if self.core.cfg.bool("music_enable_lyrics", True):
+        if self.core.cfg.bool("music_enable_lyrics", False):
             lyric = await self.lyrics_of(song)
             if lyric:
                 try:

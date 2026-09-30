@@ -21,6 +21,8 @@
 
 老婆图源 `waifu_source`：`manshuo`（默认，调用漫朔今日老婆接口）/ `local`（本地图片库）。
 
+本地图片库目录结构为 `图源/角色文件夹/图片`（如 `图源/3_安和昴/27.webp`），`local_wife_paths` 指向 `图源` 根目录。角色名默认取图片所在文件夹名并去掉前导序号（`3_安和昴` → `安和昴`）；可开启 `local_wife_name_llm` 交由大模型从文件夹名提取角色名（失败回退去序号结果）。图片直接放在 `图源` 根目录时不显示名称。
+
 ## 🗣️ 自然语言驱动
 
 本插件**以自然语言为主、指令为兜底**（指令默认关闭）：
@@ -75,13 +77,16 @@ WebUI 插件配置页可修改；关键项：
 | `fortune_tiers` | 内置 9 级 | 运势等级/权重/积分区间 |
 | `streak_bonus_per_day` / `streak_bonus_cap` | `5` / `50` | 连签加成 |
 | `waifu_source` | `manshuo` | 老婆图源 |
-| `local_wife_paths` | `[]` | 本地老婆图片文件或目录路径列表，`waifu_source=local` 时使用 |
-| `local_wife_name_from_filename` | `true` | 是否使用本地图片文件名（不含扩展名）作为人物名称 |
+| `local_wife_paths` | `[]` | 本地图片库根目录（`图源/角色文件夹/图片`），`waifu_source=local` 时使用 |
+| `local_wife_name_source` | `folder` | 名称来源：`folder`（角色文件夹名去序号）/`filename`/`none` |
+| `local_wife_name_llm` | `false` | 用大模型从文件夹名提取角色名（失败回退去序号） |
+| `local_wife_name_llm_timeout` | `20` | 大模型提取名称超时（秒） |
 | `change_wife_cost` / `change_wife_limit` | `30` / `2` | 换老婆（每人每天全局） |
 | `music_agg_base_url` | `https://music.txqq.pro/` | 点歌聚合接口 |
 | `music_send_card` | `true` | QQ OneBot 上尝试普通卡片和签名卡片 |
 | `music_card_api_key` | 空 | 签名 Ark 卡片服务的 API Key |
 | `music_record_link` | `false` | 卡片失败后尝试语音发送 |
+| `music_enable_lyrics` | `false` | 发送后附带歌词预览（仍可用 `/查歌词` 单独查询） |
 | `admin_*` | 见配置 | 群管默认值/违禁词/刷屏/宵禁/进阶 |
 | `llm_capability_hint` | `true` | 是否向默认 LLM 注入本插件工具能力提示 |
 
