@@ -5,7 +5,7 @@ desc: >-
   一站式聚合插件（默认 Agent 工具）：每日签到（吉凶运势/积分/连签）、每日老婆（多图源，默认漫朔）、
   QQ点歌、QQ 群管。通过 20+ LLM 函数工具接入 AstrBot 默认对话与主动回复管线。
   QQ 专属功能自动降级，其他插件能力保持全平台可用。
-version: v1.2.0
+version: v1.3.0
 author: tree-people-Z
 repo: https://github.com/tree-people-Z/astrbot_plugin_allinone
 astrbot_version: ">=4.16"
