@@ -3,7 +3,10 @@ display_name: 聚合助手 AllInOne
 short_desc: >-
   QQ 点歌、歌单与 QQ 群管理，通过 LLM 工具或传统指令调用。
   签到与每日老婆已拆分为 astrbot_plugin_checkin_wife。
-version: v1.4.0
+desc: >-
+  QQ 点歌、歌单与 QQ 群管理，支持自然语言工具、Markdown 消息及 QQ 官方交互按钮。
+  签到、积分、排行榜与每日老婆已拆分为独立插件 astrbot_plugin_checkin_wife。
+version: v1.4.1
 author: tree-people-Z
 repo: https://github.com/tree-people-Z/astrbot_plugin_allinone
 astrbot_version: ">=4.16"

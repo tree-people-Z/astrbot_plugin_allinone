@@ -1,5 +1,10 @@
 # 更新日志
 
+## v1.4.1
+
+- 补回 metadata.yaml 必需字段 desc，修复 AstrBot v4.28.2 更新插件时安装包校验失败。
+- 使用 AstrBot 自带安装包校验器验证修复版及独立签到插件的 ZIP。
+
 ## v1.4.0
 
 - 签到、积分、排行榜和每日老婆拆出为独立插件 `astrbot_plugin_checkin_wife` v1.0.0。
