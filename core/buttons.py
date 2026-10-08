@@ -40,37 +40,13 @@ class QQButtons:
     def actions_for(self, text: str) -> list[ButtonAction]:
         title = text.splitlines()[0] if text else ""
         cfg = self.core.cfg
-        checkin = ButtonAction("签到", "checkin")
-        info = ButtonAction("我的资料", "my_info")
-        ranking = ButtonAction("查看排行榜", "leaderboard")
-        wife = ButtonAction("抽老婆", "wife")
-        actions = []
-        if "签到成功" in title or "今天已签到" in title:
-            actions = [ranking, info, wife]
-        elif "还未抽取" in title:
-            actions = [wife, info]
-        elif "今日老婆" in title or "换老婆成功" in title:
-            cost = max(0, cfg.int("change_wife_cost", 60))
-            if "次数已用完" not in text:
-                label = f"换老婆 · {cost} 积分" if cost else "免费换老婆"
-                actions.append(ButtonAction(label, "change_wife", {"cost": cost}))
-            actions += [info, ranking]
-        elif "我的资料" in title:
-            actions = [checkin, wife, ranking]
-        elif "积分排行榜" in title or "积分不足" in title:
-            actions = [checkin, info]
-        elif "我的歌单" in title:
+        if "我的歌单" in title:
             actions = [ButtonAction("刷新歌单", "playlist"), ButtonAction("功能帮助", "help")]
         elif "聚合助手" in title:
-            actions = [checkin, wife, ranking, ButtonAction("我的歌单", "playlist")]
-        switches = {
-            "checkin": "checkin_enable",
-            "wife": "wife_enable",
-            "change_wife": "wife_enable",
-            "playlist": "music_enable",
-            "play_song": "music_enable",
-        }
-        return [a for a in actions if cfg.bool(switches.get(a.action, ""), True)]
+            actions = [ButtonAction("我的歌单", "playlist")]
+        else:
+            actions = []
+        return [a for a in actions if a.action != "playlist" or cfg.bool("music_enable", True)]
 
     def _prune(self):
         now = time.time()

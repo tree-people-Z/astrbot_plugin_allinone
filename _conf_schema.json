@@ -31,7 +31,7 @@
   "command_enable": {
     "description": "启用传统指令",
     "type": "bool",
-    "hint": "默认关闭，改为自然语言驱动；开启后保留 /签到 /点歌 等指令作为兜底。",
+    "hint": "默认关闭，开启后保留 /点歌 /查歌词 /我的歌单 /群管帮助 等指令作为兜底。",
     "default": false
   },
   "llm_capability_hint": {
@@ -39,95 +39,6 @@
     "type": "bool",
     "hint": "开启后会在每轮对话注入一小段动态上下文，让模型明确可用能力。",
     "default": true
-  },
-  "checkin_enable": {
-    "description": "启用签到模块",
-    "type": "bool",
-    "default": true
-  },
-  "fortune_tiers": {
-    "description": "签到吉凶运势等级（权重相对概率，积分区间）",
-    "type": "template_list",
-    "hint": "签到先抽等级，再在该等级积分区间内随机。留空则使用内置 9 级默认值。新版奖励逐档递增，大吉 1501～3000，超大吉固定 10000（基础积分，另计连签加成）；已有配置需手动更新或清空等级列表以使用内置值。",
-    "default": [
-      {"__template_key": "tier", "name": "大凶", "weight": 3, "min_points": 5, "max_points": 25},
-      {"__template_key": "tier", "name": "凶", "weight": 7, "min_points": 26, "max_points": 75},
-      {"__template_key": "tier", "name": "小凶", "weight": 10, "min_points": 76, "max_points": 150},
-      {"__template_key": "tier", "name": "末吉", "weight": 15, "min_points": 151, "max_points": 250},
-      {"__template_key": "tier", "name": "小吉", "weight": 20, "min_points": 251, "max_points": 500},
-      {"__template_key": "tier", "name": "中吉", "weight": 20, "min_points": 501, "max_points": 900},
-      {"__template_key": "tier", "name": "吉", "weight": 15, "min_points": 901, "max_points": 1500},
-      {"__template_key": "tier", "name": "大吉", "weight": 8, "min_points": 1501, "max_points": 3000},
-      {"__template_key": "tier", "name": "超大吉", "weight": 2, "min_points": 10000, "max_points": 10000}
-    ],
-    "templates": {
-      "tier": {
-        "name": "运势等级",
-        "display_item": "name",
-        "items": {
-          "name": {"description": "等级名称", "type": "string", "default": "小吉"},
-          "weight": {"description": "权重（相对概率）", "type": "int", "default": 10},
-          "min_points": {"description": "最低积分", "type": "int", "default": 1},
-          "max_points": {"description": "最高积分", "type": "int", "default": 10}
-        }
-      }
-    }
-  },
-  "streak_bonus_per_day": {
-    "description": "连续签到每日额外加成积分",
-    "type": "int",
-    "default": 10
-  },
-  "streak_bonus_cap": {
-    "description": "连续签到加成上限",
-    "type": "int",
-    "default": 100
-  },
-  "wife_enable": {
-    "description": "启用每日老婆模块",
-    "type": "bool",
-    "default": true
-  },
-  "waifu_source": {
-    "description": "每日老婆图源",
-    "type": "string",
-    "options": ["manshuo", "local"],
-    "default": "manshuo"
-  },
-  "local_wife_paths": {
-    "description": "本地老婆图片路径",
-    "type": "list",
-    "hint": "可填写图片文件或目录路径；目录会递归扫描 jpg/jpeg/png/gif/webp/bmp 文件。waifu_source=local 时使用。",
-    "default": []
-  },
-  "local_wife_name_source": {
-    "description": "本地老婆人物名称来源",
-    "type": "string",
-    "options": ["folder", "filename", "none"],
-    "hint": "folder：取图片所在角色文件夹名（自动去掉前导序号，如 3_安和昴 → 安和昴）；filename：用图片文件名；none：不显示名称。",
-    "default": "folder"
-  },
-  "local_wife_name_llm": {
-    "description": "用大模型从文件夹名提取角色名",
-    "type": "bool",
-    "hint": "仅名称来源为 folder 时生效；开启后交由默认大模型从文件夹名提取角色名，失败或超时则回退为去掉序号的结果，成功结果会缓存。",
-    "default": false
-  },
-  "local_wife_name_llm_timeout": {
-    "description": "大模型提取名称超时（秒）",
-    "type": "int",
-    "hint": "仅 local_wife_name_llm 开启时生效，超时回退为去掉序号的结果。",
-    "default": 20
-  },
-  "change_wife_cost": {
-    "description": "换老婆消耗积分",
-    "type": "int",
-    "default": 60
-  },
-  "change_wife_limit": {
-    "description": "每日换老婆次数上限（0 不限）",
-    "type": "int",
-    "default": 2
   },
   "music_enable": {
     "description": "启用点歌模块",
@@ -137,7 +48,9 @@
   "music_default_platform": {
     "description": "点歌音源",
     "type": "string",
-    "options": ["qq"],
+    "options": [
+      "qq"
+    ],
     "default": "qq"
   },
   "music_agg_base_url": {
@@ -153,7 +66,11 @@
   "music_select_mode": {
     "description": "选歌展示方式",
     "type": "string",
-    "options": ["text", "image", "single"],
+    "options": [
+      "text",
+      "image",
+      "single"
+    ],
     "default": "text"
   },
   "music_record_link": {
