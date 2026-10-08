@@ -11,6 +11,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 
 from ..core.core import Core
+from ..core.messages import action_hint, card, escape_markdown, lyrics_card, markdown_result
 from ..core.utils import sender_id_of, sender_name_of, truncate
 
 SIGN = "[allinone:music]"
@@ -109,11 +110,16 @@ class MusicModule:
             session_waiter,
         )
 
-        lines = [f"{position}. 《{song.name}》- {song.artists}" for position, song in enumerate(songs, 1)]
-        lines.append(
-            f"{sender_name_of(event)}，请回复序号选择歌曲（1-{len(songs)}），回复 取消 退出："
+        lines = [
+            f"{position}. **{escape_markdown(song.name)}** · {escape_markdown(song.artists)}"
+            for position, song in enumerate(songs, 1)
+        ]
+        text = card(
+            "🎵 选择歌曲",
+            "\n".join(lines),
+            f"请在 {timeout} 秒内回复序号 **1–{len(songs)}**，或回复“取消”。",
         )
-        await event.send(event.plain_result("\n".join(lines)))
+        await event.send(markdown_result(event, text))
 
         selected: Song | None = None
 
@@ -121,19 +127,35 @@ class MusicModule:
         async def waiter(controller: SessionController, waiter_event: AstrMessageEvent):
             if waiter_event.get_sender_id() != event.get_sender_id():
                 return
+            if waiter_event.unified_msg_origin != event.unified_msg_origin:
+                return
             text = waiter_event.message_str.strip()
             if text in ("取消", "退出"):
                 controller.stop()
+                await waiter_event.send(
+                    markdown_result(
+                        waiter_event, card("🎵 已取消选歌", "想听歌时，再告诉我歌名即可。")
+                    )
+                )
                 return
             if text.isdigit() and 1 <= int(text) <= len(songs):
                 nonlocal selected
                 selected = songs[int(text) - 1]
                 controller.stop()
+                return
+            await waiter_event.send(
+                markdown_result(
+                    waiter_event,
+                    card("🎵 请选择有效序号", f"回复 1–{len(songs)}，或回复“取消”。"),
+                )
+            )
 
         try:
             await waiter(event)
         except TimeoutError:
-            await event.send(event.plain_result("选择超时，已退出选歌。"))
+            await event.send(
+                markdown_result(event, card("⏳ 选歌已结束", "等待超时，想继续听歌可以重新点歌。"))
+            )
         except Exception as exc:
             logger.warning(f"{SIGN} 选歌会话异常: {exc}")
         return selected
@@ -231,7 +253,11 @@ class MusicModule:
             logger.warning(f"{SIGN} 签名卡片请求失败: {type(exc).__name__}")
             return False
         data = result.get("data") if isinstance(result, dict) else None
-        if not isinstance(data, dict) or result.get("code") != 200 or not {"app", "meta", "prompt", "view"} <= data.keys():
+        if (
+            not isinstance(data, dict)
+            or result.get("code") != 200
+            or not {"app", "meta", "prompt", "view"} <= data.keys()
+        ):
             logger.warning(f"{SIGN} 签名卡片服务返回无效数据")
             return False
         return await self._send_onebot(
@@ -256,8 +282,12 @@ class MusicModule:
                 logger.warning(f"{SIGN} 语音链接发送失败: {exc}")
         if not sent and (song.link or song.audio_url):
             try:
-                info = f"🎵 {song.name} - {song.artists}\n🔗 {song.link or song.audio_url}"
-                await event.send(event.plain_result(info))
+                info = card(
+                    "🎵 歌曲链接",
+                    f"**{escape_markdown(song.name)}** · {escape_markdown(song.artists)}",
+                    f"🔗 {song.link or song.audio_url}",
+                )
+                await event.send(markdown_result(event, info))
                 sent = True
             except Exception as exc:
                 logger.warning(f"{SIGN} 歌曲链接发送失败: {exc}")
@@ -267,20 +297,26 @@ class MusicModule:
             lyric = await self.lyrics_of(song)
             if lyric:
                 try:
-                    await event.send(event.plain_result(f"📃 歌词预览：\n{truncate(lyric, 600)}"))
+                    await event.send(
+                        markdown_result(event, lyrics_card(song.name, truncate(lyric, 600)))
+                    )
                 except Exception as exc:
                     logger.warning(f"{SIGN} 歌词发送失败: {exc}")
         return f"{sender_name_of(event)}，已发送歌曲《{song.name}》- {song.artists}"
 
     def format_songs(self, songs: list[Song], sender_name: str = "") -> str:
-        owner = f"{sender_name}，" if sender_name else ""
         if not songs:
-            return f"{owner}没有找到相关歌曲。"
-        lines = [f"{owner}找到以下歌曲："]
-        for position, song in enumerate(songs, 1):
-            lines.append(f"{position}. 《{song.name}》- {song.artists}")
-        lines.append("回复序号可选择播放，例如：点歌 稻香 2")
-        return "\n".join(lines)
+            return card("🔎 没有找到歌曲", "试试更完整的歌名，或加上歌手名。")
+        lines = [
+            f"{position}. **{escape_markdown(song.name)}** · {escape_markdown(song.artists)}"
+            for position, song in enumerate(songs, 1)
+        ]
+        return card(
+            "🔎 歌曲搜索结果",
+            escape_markdown(sender_name),
+            "\n".join(lines),
+            "想听哪首？说出歌名和歌手即可，例如“播放周杰伦的稻香”。",
+        )
 
     # ---------- 歌单 ----------
 
@@ -293,12 +329,21 @@ class MusicModule:
     async def show_playlist(self, event: AstrMessageEvent) -> str:
         rows = await self.core.db.playlist_list(sender_id_of(event), 20)
         if not rows:
-            return f"{sender_name_of(event)}，歌单还是空的，发送 歌单添加 <歌名> 收藏歌曲吧~"
-        lines = [f"🎵 {sender_name_of(event)} 的歌单："]
-        for position, row in enumerate(rows, 1):
-            lines.append(f"{position}. {row[2]} - {row[3]}")
-        lines.append("发送 播放歌单 <序号> 播放，删除歌单 <序号> 移除")
-        return "\n".join(lines)
+            return card(
+                "🎵 我的歌单",
+                "歌单还是空的，收藏一首喜欢的歌吧。",
+                action_hint(self.core.cfg, "把稻香加入歌单", "歌单添加 稻香"),
+            )
+        lines = [
+            f"{position}. **{escape_markdown(row[2])}** · {escape_markdown(row[3])}"
+            for position, row in enumerate(rows, 1)
+        ]
+        return card(
+            "🎵 我的歌单",
+            escape_markdown(sender_name_of(event)),
+            "\n".join(lines),
+            "说“播放歌单第 1 首”或“删除歌单第 1 首”即可。",
+        )
 
     async def play_from_playlist(self, event: AstrMessageEvent, index: int) -> str:
         rows = await self.core.db.playlist_list(sender_id_of(event), 20)

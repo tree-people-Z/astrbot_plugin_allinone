@@ -9,12 +9,17 @@ astrbot_plugin_music / astrbot_plugin_qqadmin 的交互设计。
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import asdict
+
 from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, filter
 from astrbot.api.star import Context, Star
 
+from .core.buttons import ButtonAction, QQButtons
 from .core.config import Config
 from .core.core import Core
+from .core.messages import card, lyrics_card, markdown_chain_result, markdown_result
 from .core.utils import (
     group_id_of,
     is_aiocqhttp,
@@ -25,7 +30,7 @@ from .core.utils import (
 )
 from .modules.checkin_wife import CheckinWifeModule
 from .modules.group_admin import AdminModule
-from .modules.music import MusicModule
+from .modules.music import MusicModule, Song
 
 SIGN = "[allinone]"
 
@@ -37,6 +42,8 @@ class AllInOnePlugin(Star):
         self.checkin_wife = CheckinWifeModule(self.core)
         self.music = MusicModule(self.core)
         self.admin = AdminModule(self.core)
+        self.buttons = QQButtons(self.core)
+        self._button_action_lock = asyncio.Lock()
 
     async def initialize(self):
         await self.core.start()
@@ -61,8 +68,10 @@ class AllInOnePlugin(Star):
     async def _targets(self, event: AstrMessageEvent, target: str = "") -> list[str]:
         return await resolve_targets(event, target)
 
-    async def _send_tool_text(self, event: AstrMessageEvent, text: str) -> str:
-        await event.send(event.plain_result(text))
+    async def _send_tool_text(
+        self, event: AstrMessageEvent, text: str, actions: list[ButtonAction] | None = None
+    ) -> str:
+        await self.buttons.send(event, markdown_result(event, text), actions)
         return "结果已直接发送给用户，无需复述。"
 
     # ============================================================
@@ -97,8 +106,10 @@ class AllInOnePlugin(Star):
             return "每日老婆功能未启用。"
         chain = await self.checkin_wife.wife(event)
         if not chain:
-            return f"{sender_name_of(event)}，老婆召唤失败，请稍后再试。"
-        await event.send(event.chain_result(chain))
+            return await self._send_tool_text(
+                event, card("💖 暂时未能抽取", "图片暂时没能获取，请稍后再试。")
+            )
+        await self.buttons.send(event, markdown_chain_result(event, chain))
         return "已为用户抽取并发送今日老婆。"
 
     @filter.llm_tool(name="change_daily_wife")
@@ -108,7 +119,7 @@ class AllInOnePlugin(Star):
             return "每日老婆功能未启用。"
         result = await self.checkin_wife.change_wife(event)
         if isinstance(result, list):
-            await event.send(event.chain_result(result))
+            await self.buttons.send(event, markdown_chain_result(event, result))
             return "已为用户换到新的老婆。"
         return await self._send_tool_text(event, str(result))
 
@@ -123,7 +134,13 @@ class AllInOnePlugin(Star):
         """
         songs = await self.music.search(truncate(keyword, 60))
         return await self._send_tool_text(
-            event, self.music.format_songs(songs, sender_name_of(event))
+            event,
+            self.music.format_songs(songs, sender_name_of(event)),
+            [
+                ButtonAction(f"播放第 {index} 首", "play_song", {"song": asdict(song)})
+                for index, song in enumerate(songs[:4], 1)
+            ]
+            + [ButtonAction("我的歌单", "playlist")],
         )
 
     @filter.llm_tool(name="play_music")
@@ -155,7 +172,7 @@ class AllInOnePlugin(Star):
                 event, f"{sender_name_of(event)}，没有找到《{keyword}》。"
             )
         lyric = await self.music.lyrics_of(songs[0])
-        text = f"📃 {songs[0].name} 歌词：\n{truncate(lyric, 1200)}" if lyric else "未找到歌词。"
+        text = lyrics_card(songs[0].name, truncate(lyric, 1200))
         return await self._send_tool_text(event, text)
 
     @filter.llm_tool(name="add_to_playlist")
@@ -170,9 +187,7 @@ class AllInOnePlugin(Star):
             return await self._send_tool_text(
                 event, f"{sender_name_of(event)}，没有找到《{keyword}》。"
             )
-        return await self._send_tool_text(
-            event, await self.music.save_to_playlist(event, songs[0])
-        )
+        return await self._send_tool_text(event, await self.music.save_to_playlist(event, songs[0]))
 
     @filter.llm_tool(name="show_my_playlist")
     async def tool_show_playlist(self, event: AstrMessageEvent):
@@ -214,7 +229,9 @@ class AllInOnePlugin(Star):
         if not self.is_qq(event):
             return "群管仅支持 QQ 平台。"
         targets = await self._targets(event, target)
-        return await self._send_tool_text(event, await self.admin.ban(event, int(duration), targets))
+        return await self._send_tool_text(
+            event, await self.admin.ban(event, int(duration), targets)
+        )
 
     @filter.llm_tool(name="unban_group_user")
     async def tool_unban_user(self, event: AstrMessageEvent, target: str = ""):
@@ -264,7 +281,9 @@ class AllInOnePlugin(Star):
             return "群管仅支持 QQ 平台。"
         targets = await self._targets(event, target)
         target_id = targets[0] if targets else ""
-        return await self._send_tool_text(event, await self.admin.recall(event, int(count), target_id))
+        return await self._send_tool_text(
+            event, await self.admin.recall(event, int(count), target_id)
+        )
 
     @filter.llm_tool(name="rename_group_member")
     async def tool_rename_member(self, event: AstrMessageEvent, target: str, card: str):
@@ -399,7 +418,7 @@ class AllInOnePlugin(Star):
         return await self._send_tool_text(event, self.capability_help(event))
 
     def capability_help(self, event: AstrMessageEvent) -> str:
-        lines = ["我可以为你做这些事（直接用自然语言告诉我就行）："]
+        lines = []
         if self.module_enabled("checkin_enable"):
             lines.append("- 签到/查积分/看排行榜：如“帮我签到”“我多少积分”“排行榜”")
         if self.module_enabled("wife_enable"):
@@ -413,7 +432,7 @@ class AllInOnePlugin(Star):
             ]
         if self.commands_on():
             lines.append("（传统指令也已开启：/签到 /点歌 /老婆 /群管帮助 等）")
-        return "\n".join(lines)
+        return card("🧩 聚合助手", "直接告诉我你想做什么：", "\n".join(lines))
 
     # ============================================================
     #  事件监听（违禁词 / 刷屏 / 宵禁）
@@ -479,12 +498,76 @@ class AllInOnePlugin(Star):
     #  传统指令（默认关闭，command_enable=true 时启用）
     # ============================================================
 
+    @filter.command("aio_action")
+    async def cmd_button_action(self, event: AstrMessageEvent, token: str = ""):
+        """QQ 原生按钮的临时指令入口，不受传统指令开关影响。"""
+        event.stop_event()
+        action, error = self.buttons.consume(event, token)
+        if action is None:
+            await self.buttons.error(event, error)
+            return
+        if action.action in {"checkin", "wife", "change_wife"}:
+            async with self._button_action_lock:
+                await self._execute_button(event, action)
+        else:
+            await self._execute_button(event, action)
+
+    async def _execute_button(self, event: AstrMessageEvent, action: ButtonAction):
+        switches = {
+            "checkin": "checkin_enable",
+            "wife": "wife_enable",
+            "change_wife": "wife_enable",
+            "playlist": "music_enable",
+            "play_song": "music_enable",
+        }
+        switch = switches.get(action.action)
+        if switch and not self.module_enabled(switch):
+            await self._send_tool_text(event, card("🧩 功能已关闭", "该功能当前未启用。"))
+            return
+        if action.action == "change_wife" and action.payload.get("cost") != max(
+            0, self.core.cfg.int("change_wife_cost", 60)
+        ):
+            await self._send_tool_text(
+                event,
+                card("💰 换老婆费用已更新", "请重新查看今日老婆，确认新费用后再操作。"),
+                [ButtonAction("查看今日老婆", "wife")],
+            )
+            return
+        if action.action == "checkin":
+            await self._send_tool_text(event, await self.checkin_wife.checkin(event))
+        elif action.action == "my_info":
+            await self._send_tool_text(event, await self.checkin_wife.my_info(event))
+        elif action.action == "leaderboard":
+            await self._send_tool_text(event, await self.checkin_wife.leaderboard(event))
+        elif action.action in {"wife", "change_wife"}:
+            result = (
+                await self.checkin_wife.wife(event)
+                if action.action == "wife"
+                else await self.checkin_wife.change_wife(event)
+            )
+            if isinstance(result, list):
+                await self.buttons.send(event, markdown_chain_result(event, result))
+            else:
+                await self._send_tool_text(
+                    event, str(result) if result else card("💖 暂时未能抽取", "请稍后再试。")
+                )
+        elif action.action == "playlist":
+            await self._send_tool_text(event, await self.music.show_playlist(event))
+        elif action.action == "play_song":
+            song = Song(**action.payload["song"])
+            status = await self.music.send_song(event, song)
+            await self._send_tool_text(event, status, [ButtonAction("我的歌单", "playlist")])
+        elif action.action == "help":
+            await self._send_tool_text(event, self.capability_help(event))
+
     @filter.command("签到", alias={"打卡", "sign"})
     async def cmd_checkin(self, event: AstrMessageEvent):
         """每日签到，抽取吉凶运势并获得积分"""
         if not self.commands_on():
             return
-        await event.send(event.plain_result(await self.checkin_wife.checkin(event)))
+        await self.buttons.send(
+            event, markdown_result(event, await self.checkin_wife.checkin(event))
+        )
         event.stop_event()
 
     @filter.command("我的信息", alias={"我的积分"})
@@ -492,7 +575,9 @@ class AllInOnePlugin(Star):
         """查看自己的积分、签到与今日老婆"""
         if not self.commands_on():
             return
-        yield event.plain_result(await self.checkin_wife.my_info(event))
+        await self.buttons.send(
+            event, markdown_result(event, await self.checkin_wife.my_info(event))
+        )
         event.stop_event()
 
     @filter.command("排行榜", alias={"排行", "积分排行"})
@@ -500,7 +585,9 @@ class AllInOnePlugin(Star):
         """查看积分排行榜 Top10"""
         if not self.commands_on():
             return
-        yield event.plain_result(await self.checkin_wife.leaderboard(event))
+        await self.buttons.send(
+            event, markdown_result(event, await self.checkin_wife.leaderboard(event))
+        )
         event.stop_event()
 
     @filter.command("老婆", alias={"今日老婆", "每日老婆"})
@@ -510,9 +597,12 @@ class AllInOnePlugin(Star):
             return
         chain = await self.checkin_wife.wife(event)
         if chain:
-            yield event.chain_result(chain)
+            await self.buttons.send(event, markdown_chain_result(event, chain))
         else:
-            yield event.plain_result(f"{sender_name_of(event)}，老婆召唤失败，请稍后再试~")
+            await self.buttons.send(
+                event,
+                markdown_result(event, card("💖 暂时未能抽取", "图片暂时没能获取，请稍后再试。")),
+            )
         event.stop_event()
 
     @filter.command("换老婆", alias={"换个老婆"})
@@ -521,10 +611,11 @@ class AllInOnePlugin(Star):
         if not self.commands_on():
             return
         result = await self.checkin_wife.change_wife(event)
-        yield (
-            event.chain_result(result)
+        await self.buttons.send(
+            event,
+            markdown_chain_result(event, result)
             if isinstance(result, list)
-            else event.plain_result(str(result))
+            else markdown_result(event, str(result)),
         )
         event.stop_event()
 
@@ -535,23 +626,34 @@ class AllInOnePlugin(Star):
             return
         keyword, index = self.music.parse_request(event.message_str)
         if not keyword:
-            yield event.plain_result(
-                f"{sender_name_of(event)}，用法：点歌 <歌名>（可结尾加序号，如：点歌 稻香 2）"
+            await self.buttons.send(
+                event,
+                markdown_result(
+                    event,
+                    f"{sender_name_of(event)}，用法：点歌 <歌名>（可结尾加序号，如：点歌 稻香 2）",
+                ),
             )
             event.stop_event()
             return
         songs = await self.music.search(keyword)
         if not songs:
-            yield event.plain_result(f"{sender_name_of(event)}，没有找到《{keyword}》相关歌曲。")
+            await self.buttons.send(
+                event,
+                markdown_result(event, f"{sender_name_of(event)}，没有找到《{keyword}》相关歌曲。"),
+            )
             event.stop_event()
             return
         if index is not None and 1 <= index <= len(songs):
-            yield event.plain_result(await self.music.send_song(event, songs[index - 1]))
+            await self.buttons.send(
+                event, markdown_result(event, await self.music.send_song(event, songs[index - 1]))
+            )
             event.stop_event()
             return
         song = await self.music.pick_song(event, songs)
         if song is not None:
-            yield event.plain_result(await self.music.send_song(event, song))
+            await self.buttons.send(
+                event, markdown_result(event, await self.music.send_song(event, song))
+            )
         event.stop_event()
 
     @filter.command("查歌词")
@@ -562,14 +664,16 @@ class AllInOnePlugin(Star):
         keyword, _ = self.music.parse_request(event.message_str)
         songs = await self.music.search(keyword, 1) if keyword else []
         if not songs:
-            yield event.plain_result("用法：查歌词 <歌名>")
+            await self.buttons.send(event, markdown_result(event, "用法：查歌词 <歌名>"))
             event.stop_event()
             return
         lyric = await self.music.lyrics_of(songs[0])
-        yield event.plain_result(
-            f"{sender_name_of(event)}，📃 {songs[0].name} 歌词：\n{truncate(lyric, 1200)}"
-            if lyric
-            else f"{sender_name_of(event)}，未找到歌词。"
+        await self.buttons.send(
+            event,
+            markdown_result(
+                event,
+                lyrics_card(songs[0].name, truncate(lyric, 1200)),
+            ),
         )
         event.stop_event()
 
@@ -578,7 +682,9 @@ class AllInOnePlugin(Star):
         """查看我的歌单"""
         if not self.commands_on():
             return
-        yield event.plain_result(await self.music.show_playlist(event))
+        await self.buttons.send(
+            event, markdown_result(event, await self.music.show_playlist(event))
+        )
         event.stop_event()
 
     @filter.command("群管帮助")
@@ -586,5 +692,5 @@ class AllInOnePlugin(Star):
         """查看群管指令"""
         if not self.commands_on():
             return
-        yield event.plain_result(self.admin.help_text())
+        await self.buttons.send(event, markdown_result(event, self.admin.help_text()))
         event.stop_event()

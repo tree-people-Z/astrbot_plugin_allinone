@@ -16,6 +16,18 @@
     "hint": "如 http://127.0.0.1:7890，留空表示不使用代理。",
     "default": ""
   },
+  "qq_buttons_enable": {
+    "description": "QQ 官方消息交互按钮",
+    "type": "bool",
+    "hint": "在 QQ 官方群聊/C2C 的插件结果下展示原生按钮；需要平台允许自定义 Markdown 和 keyboard。按钮独立于传统指令开关。",
+    "default": true
+  },
+  "qq_button_ttl": {
+    "description": "QQ 按钮有效期（秒）",
+    "type": "int",
+    "hint": "默认 600 秒，范围 30～3600。按钮绑定发起人及聊天来源，使用一次后失效；重启或跨自然日后失效。",
+    "default": 600
+  },
   "command_enable": {
     "description": "启用传统指令",
     "type": "bool",
@@ -36,17 +48,17 @@
   "fortune_tiers": {
     "description": "签到吉凶运势等级（权重相对概率，积分区间）",
     "type": "template_list",
-    "hint": "签到先抽等级，再在该等级积分区间内随机。留空则使用内置 9 级默认值。",
+    "hint": "签到先抽等级，再在该等级积分区间内随机。留空则使用内置 9 级默认值。新版奖励逐档递增，大吉 1501～3000，超大吉固定 10000（基础积分，另计连签加成）；已有配置需手动更新或清空等级列表以使用内置值。",
     "default": [
-      {"__template_key": "tier", "name": "大凶", "weight": 3, "min_points": 1, "max_points": 5},
-      {"__template_key": "tier", "name": "凶", "weight": 7, "min_points": 6, "max_points": 15},
-      {"__template_key": "tier", "name": "小凶", "weight": 10, "min_points": 16, "max_points": 25},
-      {"__template_key": "tier", "name": "末吉", "weight": 15, "min_points": 26, "max_points": 40},
-      {"__template_key": "tier", "name": "小吉", "weight": 20, "min_points": 41, "max_points": 55},
-      {"__template_key": "tier", "name": "中吉", "weight": 20, "min_points": 56, "max_points": 70},
-      {"__template_key": "tier", "name": "吉", "weight": 15, "min_points": 71, "max_points": 85},
-      {"__template_key": "tier", "name": "大吉", "weight": 8, "min_points": 86, "max_points": 99},
-      {"__template_key": "tier", "name": "超大吉", "weight": 2, "min_points": 100, "max_points": 100}
+      {"__template_key": "tier", "name": "大凶", "weight": 3, "min_points": 5, "max_points": 25},
+      {"__template_key": "tier", "name": "凶", "weight": 7, "min_points": 26, "max_points": 75},
+      {"__template_key": "tier", "name": "小凶", "weight": 10, "min_points": 76, "max_points": 150},
+      {"__template_key": "tier", "name": "末吉", "weight": 15, "min_points": 151, "max_points": 250},
+      {"__template_key": "tier", "name": "小吉", "weight": 20, "min_points": 251, "max_points": 500},
+      {"__template_key": "tier", "name": "中吉", "weight": 20, "min_points": 501, "max_points": 900},
+      {"__template_key": "tier", "name": "吉", "weight": 15, "min_points": 901, "max_points": 1500},
+      {"__template_key": "tier", "name": "大吉", "weight": 8, "min_points": 1501, "max_points": 3000},
+      {"__template_key": "tier", "name": "超大吉", "weight": 2, "min_points": 10000, "max_points": 10000}
     ],
     "templates": {
       "tier": {
@@ -64,12 +76,12 @@
   "streak_bonus_per_day": {
     "description": "连续签到每日额外加成积分",
     "type": "int",
-    "default": 5
+    "default": 10
   },
   "streak_bonus_cap": {
     "description": "连续签到加成上限",
     "type": "int",
-    "default": 50
+    "default": 100
   },
   "wife_enable": {
     "description": "启用每日老婆模块",
@@ -110,7 +122,7 @@
   "change_wife_cost": {
     "description": "换老婆消耗积分",
     "type": "int",
-    "default": 30
+    "default": 60
   },
   "change_wife_limit": {
     "description": "每日换老婆次数上限（0 不限）",

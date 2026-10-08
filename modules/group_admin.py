@@ -11,6 +11,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 
 from ..core.core import Core
+from ..core.messages import card, markdown_result
 from ..core.utils import (
     extract_image_url,
     get_ats,
@@ -318,9 +319,10 @@ class AdminModule:
                         group_id=int(group_id), user_id=int(target), duration=duration
                     )
                 await event.send(
-                    event.plain_result(
+                    markdown_result(
+                        event,
                         f"⚠️ {sender_name_of(event)} 触发违禁词（{'、'.join(hit_bad[:3])}），"
-                        f"已撤回并禁言 {duration} 秒"
+                        f"已撤回并禁言 {duration} 秒",
                     )
                 )
                 await self.record_message(group_id, target, text, True)
@@ -341,7 +343,9 @@ class AdminModule:
                         await event.bot.set_group_ban(
                             group_id=int(group_id), user_id=int(target), duration=duration
                         )
-                    await event.send(event.plain_result(f"⚠️ {sender_name_of(event)} 刷屏已被提醒"))
+                    await event.send(
+                        markdown_result(event, f"⚠️ {sender_name_of(event)} 刷屏已被提醒")
+                    )
                     return True
                 except Exception as exc:
                     logger.warning(f"{SIGN} 刷屏处理失败: {exc}")
@@ -428,9 +432,10 @@ class AdminModule:
                 group_id=int(group_id), user_id=int(sender_id_of(event)), duration=duration
             )
             await event.send(
-                event.plain_result(
+                markdown_result(
+                    event,
                     f"🌙 宵禁时段（{gdata['curfew']['start']}-{gdata['curfew']['end']}），"
-                    f"{sender_name_of(event)} 已被禁言 {duration} 秒"
+                    f"{sender_name_of(event)} 已被禁言 {duration} 秒",
                 )
             )
             return True
@@ -518,20 +523,18 @@ class AdminModule:
 
     def help_text(self) -> str:
         lines = [
-            "📜 群管指令（仅 QQ）",
-            "/禁言 <秒> [@用户] ｜ /解禁 @用户",
-            "/全禁 开 ｜ /全禁 关",
-            "/踢了 @用户 ｜ /群拉黑 @用户",
-            "/撤回 [@用户] [数量]，或引用消息 + /撤回",
-            "/改名 <新昵称> @用户",
-            "/发布群公告 <内容>",
-            "/设置禁词 <词1 词2...> ｜ /查看禁词",
-            "/宵禁 22:00 07:00 ｜ /关闭宵禁",
+            "- **禁言与解禁**：“把张三禁言 10 分钟”“解除张三的禁言”",
+            "- **全员禁言**：“开启全员禁言”“关闭全员禁言”",
+            "- **成员管理**：“把张三踢出群”“将张三的群昵称改为小明”",
+            "- **撤回消息**：“撤回张三最近 3 条消息”",
+            "- **群公告**：“发布群公告：今晚八点活动”",
+            "- **自动管理**：“设置违禁词 广告 加群”“宵禁 22:00 07:00”",
         ]
         if self.core.cfg.bool("admin_advanced_enable", False):
-            lines += [
-                "/头衔 <头衔> @用户（需群主）",
-                "/上管 @用户 ｜ /下管 @用户",
-                "/改群名 <新名> ｜ /改群头像（引用图片）",
-            ]
-        return "\n".join(lines)
+            lines.append("- **进阶管理**：“把群名改为摸鱼群”“给张三设置头衔”")
+        return card(
+            "🛡️ 群管理帮助",
+            "在 QQ 群里直接说出操作和目标成员即可。",
+            "\n".join(lines),
+            "执行前会检查你的权限和机器人的权限。",
+        )

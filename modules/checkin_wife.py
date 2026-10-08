@@ -15,18 +15,19 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 
 from ..core.core import Core
+from ..core.messages import action_hint, card, escape_markdown
 from ..core.utils import member_names, sender_id_of, sender_name_of
 
 DEFAULT_TIERS = [
-    {"name": "大凶", "weight": 3, "min_points": 1, "max_points": 5},
-    {"name": "凶", "weight": 7, "min_points": 6, "max_points": 15},
-    {"name": "小凶", "weight": 10, "min_points": 16, "max_points": 25},
-    {"name": "末吉", "weight": 15, "min_points": 26, "max_points": 40},
-    {"name": "小吉", "weight": 20, "min_points": 41, "max_points": 55},
-    {"name": "中吉", "weight": 20, "min_points": 56, "max_points": 70},
-    {"name": "吉", "weight": 15, "min_points": 71, "max_points": 85},
-    {"name": "大吉", "weight": 8, "min_points": 86, "max_points": 99},
-    {"name": "超大吉", "weight": 2, "min_points": 100, "max_points": 100},
+    {"name": "大凶", "weight": 3, "min_points": 5, "max_points": 25},
+    {"name": "凶", "weight": 7, "min_points": 26, "max_points": 75},
+    {"name": "小凶", "weight": 10, "min_points": 76, "max_points": 150},
+    {"name": "末吉", "weight": 15, "min_points": 151, "max_points": 250},
+    {"name": "小吉", "weight": 20, "min_points": 251, "max_points": 500},
+    {"name": "中吉", "weight": 20, "min_points": 501, "max_points": 900},
+    {"name": "吉", "weight": 15, "min_points": 901, "max_points": 1500},
+    {"name": "大吉", "weight": 8, "min_points": 1501, "max_points": 3000},
+    {"name": "超大吉", "weight": 2, "min_points": 10000, "max_points": 10000},
 ]
 
 MEDALS = ["🥇", "🥈", "🥉"]
@@ -88,8 +89,10 @@ class CheckinWifeModule:
 
         row = await self.db.get_user(sender_id, "")
         if row and row[2] == today:
-            return (
-                f"📅 {name}，今天已经签到过啦~\n当前累计积分：{row[0]}\n连续签到：{row[1]} 天\n明天再来吧！"
+            return card(
+                "📅 今天已签到",
+                f"{escape_markdown(name)}，今天的奖励已经领取，明天再来。",
+                f"- 连续签到：{row[1]} 天\n- 积分余额：**{row[0]}**",
             )
 
         streak = 1
@@ -104,56 +107,73 @@ class CheckinWifeModule:
 
         tier = self.roll_tier()
         base = random.randint(int(tier["min_points"]), int(tier["max_points"]))
-        per_day = self.core.cfg.int("streak_bonus_per_day", 5)
-        cap = self.core.cfg.int("streak_bonus_cap", 50)
+        per_day = self.core.cfg.int("streak_bonus_per_day", 10)
+        cap = self.core.cfg.int("streak_bonus_cap", 100)
         bonus = min(streak * per_day, cap) if per_day > 0 else 0
         gain = base + bonus
 
         await self.db.apply_checkin(sender_id, "", name, gain, streak, today)
         total = (row[0] if row else 0) + gain
 
-        mood = "🎉" if "吉" in tier["name"] else "😢"
-        lines = [f"📅 {name} 今日运势：{tier['name']} {mood}"]
-        if bonus > 0:
-            lines.append(f"获得积分：{base}（连续签到 {streak} 天，+{bonus}）")
-        else:
-            lines.append(f"获得积分：{base}")
-        lines.append(f"当前累计积分：{total}")
-        lines.append(f"连续签到：{streak} 天")
-        return "\n".join(lines)
+        fortune = escape_markdown(tier["name"])
+        jackpot = tier["name"] == "超大吉"
+        greeting = (
+            f"{escape_markdown(name)}，大奖到手！"
+            if jackpot
+            else f"{escape_markdown(name)}，今天好运在线！"
+            if "吉" in tier["name"]
+            else f"{escape_markdown(name)}，今天先攒好运，积分照样到账。"
+        )
+        return card(
+            f"{'🎊' if jackpot else '📅'} 签到成功 · {fortune}",
+            greeting,
+            f"**本次获得：+{gain} 积分**",
+            f"- 基础奖励：{base}\n- 连签加成：{bonus}\n"
+            f"- 连续签到：{streak} 天\n- 积分余额：**{total}**",
+            "明天继续签到，延续好运 ✨",
+        )
 
     async def my_info(self, event: AstrMessageEvent):
         sender_id = sender_id_of(event)
         user = await self.db.get_user(sender_id, "")
         wife = await self.db.get_wife(sender_id, "", self.core.today())
-
-        lines = [
-            f"👤 {sender_name_of(event)} 的信息",
-            f"累计积分：{user[0] if user else 0}",
-            f"连续签到：{user[1] if user else 0} 天",
-            f"总签到：{user[3] if user else 0} 次",
-        ]
-        lines.append(f"今日老婆：{wife[0]}" if wife else "今日老婆：还没抽，发送 /老婆 试试~")
-        return "\n".join(lines)
+        return card(
+            "👤 我的资料",
+            escape_markdown(sender_name_of(event)),
+            f"**积分余额：{user[0] if user else 0}**",
+            f"- 连续签到：{user[1] if user else 0} 天\n"
+            f"- 累计签到：{user[3] if user else 0} 次\n"
+            f"- 今日老婆：{escape_markdown(wife[0] or '见今日老婆图片') if wife else '还未抽取'}",
+            action_hint(self.core.cfg, "抽老婆", "/老婆") if not wife else "",
+        )
 
     async def leaderboard(self, event: AstrMessageEvent):
         rows = await self.db.leaderboard("", 10)
         if not rows:
-            return "暂无排行数据，快去发送 /签到 吧~"
+            return card(
+                "🏆 积分排行榜",
+                "还没有人上榜，来做第一位吧！",
+                action_hint(self.core.cfg, "帮我签到", "/签到"),
+            )
         missing = [sid for sid, name, _ in rows if not name]
         names = await member_names(event, missing)
-        lines = ["🏆 全局积分排行榜 Top10"]
+        lines = []
+        previous_points = None
+        position = 0
         for index, (sender_id, sender_name, points) in enumerate(rows):
-            prefix = MEDALS[index] if index < 3 else f"{index + 1}."
-            lines.append(f"{prefix} {sender_name or names.get(sender_id) or sender_id} — {points}")
-
-        me = sender_id_of(event)
-        if all(str(sender_id) != str(me) for sender_id, _, _ in rows):
-            rank = await self.db.user_rank("", me)
-            if rank:
-                lines.append("──────────")
-                lines.append(f"第 {rank[0]} 名 {sender_name_of(event)} — {rank[1]}")
-        return "\n".join(lines)
+            if points != previous_points:
+                position = index + 1
+            previous_points = points
+            prefix = MEDALS[position - 1] if position <= 3 else f"第 {position} 名"
+            name = escape_markdown(sender_name or names.get(sender_id) or sender_id)
+            lines.append(f"{prefix} {name} · **{points}**")
+        rank = await self.db.user_rank("", sender_id_of(event))
+        own = (
+            f"📍 你的排名：第 {rank[0]} 名 · **{rank[1]} 积分**"
+            if rank
+            else "📍 你还未上榜。" + action_hint(self.core.cfg, "帮我签到", "/签到")
+        )
+        return card("🏆 积分排行榜 · Top 10", "  \n".join(lines), "---", own)
 
     # ---------- 老婆图源 ----------
 
@@ -299,24 +319,27 @@ class CheckinWifeModule:
         prefix: str = "🎴 今日老婆",
         change_count: int | None = None,
     ) -> list:
-        cost = self.core.cfg.int("change_wife_cost", 30)
+        cost = self.core.cfg.int("change_wife_cost", 60)
         limit = self.core.cfg.int("change_wife_limit", 2)
-        name = str(result.get("name") or "").strip()
-        owner = f"{sender_name}，" if sender_name else ""
-        if sender_name and change_count == 0:
-            lines = [f"🎴 {owner}今天，你的老婆是{name}".rstrip()]
-        elif prefix.startswith("🔄"):
-            lines = [f"{prefix}：{owner}今天，你的老婆是{name}".rstrip()]
-        else:
-            lines = [f"{owner}今天，你的老婆是{name}".rstrip()]
+        name = escape_markdown(str(result.get("name") or "").strip())
+        owner = f"{escape_markdown(sender_name)}，" if sender_name else ""
+        changed = prefix.startswith("🔄")
+        title = "🔄 换老婆成功" if changed else "💖 今日老婆"
+        greeting = f"{owner}今天与你相遇的是：" if name else f"{owner}今天的相遇在图片里。"
+        details = []
+        if changed:
+            details.append(f"- 本次消耗：{max(cost, 0)} 积分")
         if change_count is not None:
-            if limit > 0:
-                lines.append(f"今日已换 {change_count}/{limit} 次")
-            lines.append(
-                f"发送 /换老婆 重抽（消耗 {cost} 积分）"
-                if cost > 0
-                else "发送 /换老婆 重抽（免费）"
+            details.append(
+                f"- 今日换老婆：{change_count} / {limit} 次"
+                if limit > 0
+                else f"- 今日已换：{change_count} 次（不限次数）"
             )
+        hint = action_hint(self.core.cfg, "换老婆", "/换老婆")
+        hint += f" 每次消耗 {cost} 积分。" if cost > 0 else " 免费重抽。"
+        if change_count is not None and limit > 0 and change_count >= limit:
+            hint = "今日换老婆次数已用完，明天可继续。"
+        text = card(title, greeting, f"**{name}**" if name else "", "\n".join(details), hint)
         chain = []
         if result.get("image"):
             image = str(result["image"])
@@ -324,7 +347,7 @@ class CheckinWifeModule:
                 chain.append(Comp.Image.fromFileSystem(image))
             else:
                 chain.append(Comp.Image.fromURL(image))
-        chain.append(Comp.Plain("\n".join(lines)))
+        chain.append(Comp.Plain(text))
         return chain
 
     async def wife(self, event: AstrMessageEvent):
@@ -332,21 +355,11 @@ class CheckinWifeModule:
         today = self.core.today()
         existing = await self.db.get_wife(sender_id, "", today)
         if existing:
-            chain = []
-            if existing[1]:
-                image = str(existing[1])
-                if Path(image).is_file():
-                    chain.append(Comp.Image.fromFileSystem(image))
-                else:
-                    chain.append(Comp.Image.fromURL(image))
-            chain.append(
-                Comp.Plain(
-                    f"💞 {sender_name_of(event)} 你今天的老婆已经抽过啦~\n"
-                    f"今天，你的老婆是{existing[0] or ''}\n"
-                    "发送 /换老婆 可以重抽"
-                ),
+            return self.render_wife(
+                {"name": existing[0], "image": existing[1]},
+                sender_name=sender_name_of(event),
+                change_count=int(existing[4]),
             )
-            return chain
         result = await self.draw_wife(event)
         if not result:
             return None
@@ -366,25 +379,30 @@ class CheckinWifeModule:
         sender_id = sender_id_of(event)
         name = sender_name_of(event)
         today = self.core.today()
-        cost = self.core.cfg.int("change_wife_cost", 30)
+        cost = self.core.cfg.int("change_wife_cost", 60)
         limit = self.core.cfg.int("change_wife_limit", 2)
 
         existing = await self.db.get_wife(sender_id, "", today)
         if not existing:
-            return f"{name}，你还没有今天的老婆，先发送 /老婆 抽一个吧~"
+            return card("💖 还未抽取今日老婆", action_hint(self.core.cfg, "抽老婆", "/老婆"))
 
         change_count = int(existing[4])
         if limit > 0 and change_count >= limit:
-            return f"{name}，今日换老婆次数已用完（上限 {limit} 次），明天再来吧~"
+            return card("🔄 今日次数已用完", f"今日已换 {change_count} / {limit} 次，明天可继续。")
 
         user = await self.db.get_user(sender_id, "")
         points = user[0] if user else 0
         if cost > 0 and points < cost:
-            return f"{name}，积分不足，换老婆需要 {cost} 积分，你当前只有 {points} 积分。"
+            return card(
+                "💰 积分不足",
+                f"**还差 {cost - points} 积分**",
+                f"- 换老婆需要：{cost}\n- 当前余额：{points}",
+                action_hint(self.core.cfg, "帮我签到", "/签到"),
+            )
 
         result = await self.draw_wife(event)
         if not result:
-            return f"{name}，老婆召唤失败，请稍后再试~"
+            return card("💖 暂时未能抽取", "图片暂时没能获取，请稍后再试。本次未扣积分。")
 
         if cost > 0:
             await self.db.add_points(sender_id, "", -cost, name)

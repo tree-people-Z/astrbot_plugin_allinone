@@ -75,13 +75,13 @@ WebUI 插件配置页可修改；关键项：
 | --- | --- | --- |
 | `timezone` | `8` | 时区（自然日重置） |
 | `fortune_tiers` | 内置 9 级 | 运势等级/权重/积分区间 |
-| `streak_bonus_per_day` / `streak_bonus_cap` | `5` / `50` | 连签加成 |
+| `streak_bonus_per_day` / `streak_bonus_cap` | `10` / `100` | 连签加成 |
 | `waifu_source` | `manshuo` | 老婆图源 |
 | `local_wife_paths` | `[]` | 本地图片库根目录（`图源/角色文件夹/图片`），`waifu_source=local` 时使用 |
 | `local_wife_name_source` | `folder` | 名称来源：`folder`（角色文件夹名去序号）/`filename`/`none` |
 | `local_wife_name_llm` | `false` | 用大模型从文件夹名提取角色名（失败回退去序号） |
 | `local_wife_name_llm_timeout` | `20` | 大模型提取名称超时（秒） |
-| `change_wife_cost` / `change_wife_limit` | `30` / `2` | 换老婆（每人每天全局） |
+| `change_wife_cost` / `change_wife_limit` | `60` / `2` | 换老婆（每人每天全局） |
 | `music_agg_base_url` | `https://music.txqq.pro/` | 点歌聚合接口 |
 | `music_send_card` | `true` | QQ OneBot 上尝试普通卡片和签名卡片 |
 | `music_card_api_key` | 空 | 签名 Ark 卡片服务的 API Key |
@@ -107,3 +107,40 @@ WebUI 插件配置页可修改；关键项：
 ## 📄 License
 
 [GPL-3.0](./LICENSE)
+
+## 积分奖励与 Markdown 消息
+
+插件文字消息统一启用 Markdown，包含标题、加粗的积分字段及排行榜；老婆图片保留原生图片组件。Markdown 的实际展示取决于消息平台支持，QQ OneBot/NapCat 不支持原生 Markdown 时仍按文本显示。
+
+Markdown 仅作用于本插件新建的消息结果，普通聊天继续使用 AstrBot 默认处理方式，插件不修改全局聊天格式。签到、资料、排行榜、老婆、歌曲列表和歌词分别使用专门的版式；旧模块结果使用统一结果标题。
+
+详细示例、交互流程及平台限制见 [Markdown 消息交互方案](docs/markdown-interaction.md)。
+
+新默认奖励如下（运势抽取概率保持原有配置）：
+
+| 运势 | 基础积分 |
+| --- | ---: |
+| 大凶 | 5～25 |
+| 凶 | 26～75 |
+| 小凶 | 76～150 |
+| 末吉 | 151～250 |
+| 小吉 | 251～500 |
+| 中吉 | 501～900 |
+| 吉 | 901～1500 |
+| 大吉 | 1501～3000 |
+| 超大吉 | 10000 |
+
+超大吉基础奖励固定为 10000 积分，连签加成另计。
+
+连签加成为每天 10 积分、最多 100 积分；换老婆每次消耗 60 积分。
+已有用户的积分余额保留。已保存的自定义配置不会被新默认值覆盖：升级后请在 WebUI 更新运势奖励、连签加成和换老婆费用，或将运势列表清空以采用内置奖励。
+
+## QQ 官方交互按钮
+
+QQ 官方群聊和 C2C（含 Webhook）支持原生按钮：签到下方可查看排行榜、资料或抽老婆；老婆下方可按当前费用换老婆；歌曲搜索可点击播放对应候选，歌单可刷新或查看帮助。
+
+`qq_buttons_enable=true` 默认开启，`qq_button_ttl=600` 设置按钮有效期。按钮直接调用插件，无需开启传统指令。凭据绑定发起人和当前聊天，每个按钮只可使用一次，跨日或重启后失效；扣费与每日次数继续按当前配置校验。
+
+账号需要允许自定义 Markdown 与 keyboard；客户端可能先把指令填入输入框，需要用户发送。权限不足或按钮消息发送失败时回退文字入口。QQ 频道、OneBot/NapCat 等平台本轮不发送官方按钮，普通聊天格式保持原有处理方式。
+
+验证：`ruff check .`、`python -m unittest discover -s tests -v`。原生显示效果需 QQ 官方环境实测。
